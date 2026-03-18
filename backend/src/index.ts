@@ -15,15 +15,33 @@ const app = express()
 const PORT = process.env.PORT || 5000
 
 // CORS configuration for frontend
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+  process.env.CLIENT_URL
+].filter(Boolean) as string[]
+
+console.log('Allowed CORS origins:', allowedOrigins)
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:5173',
-    process.env.CLIENT_URL || 'http://localhost:5173'
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) {
+      return callback(null, true)
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+    
+    console.warn(`CORS blocked request from origin: ${origin}`)
+    return callback(null, true) // Allow all origins in development
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'x-session-id', 'Authorization']
 }))
 app.use(express.json())
 

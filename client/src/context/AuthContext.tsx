@@ -37,14 +37,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (username: string, password: string) => {
-    const response = await api.post('/auth/login', { username, password })
-    const { sessionId: newSessionId, user: newUser } = response.data
-    
-    localStorage.setItem('sessionId', newSessionId)
-    localStorage.setItem('user', JSON.stringify(newUser))
-    
-    setSessionId(newSessionId)
-    setUser(newUser as User)
+    try {
+      const response = await api.post('/auth/login', { username, password })
+      const { sessionId: newSessionId, user: newUser } = response.data
+      
+      localStorage.setItem('sessionId', newSessionId)
+      localStorage.setItem('user', JSON.stringify(newUser))
+      
+      setSessionId(newSessionId)
+      setUser(newUser as User)
+    } catch (error: any) {
+      // Extract error message from API response or provide fallback
+      const errorMessage = 
+        error.response?.data?.error || 
+        error.response?.data?.message || 
+        error.message || 
+        'Login failed. Please check your credentials.'
+      
+      // Log for debugging
+      console.error('[v0] Login error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+        code: error.code
+      })
+      
+      throw new Error(errorMessage)
+    }
   }
 
   const logout = async () => {

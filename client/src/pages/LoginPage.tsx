@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { Database, Eye, EyeOff, Loader2 } from 'lucide-react'
+import ConnectionStatus from '@/components/ConnectionStatus'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -26,11 +27,15 @@ export default function LoginPage() {
 
     setIsLoading(true)
     try {
+      console.log('[v0] Attempting login for user:', username)
       await login(username, password)
+      console.log('[v0] Login successful, navigating to dashboard')
       toast.success('Login successful!')
       navigate('/dashboard')
     } catch (error: any) {
-      toast.error(error.message || 'Invalid credentials')
+      console.error('[v0] Login failed:', error)
+      const errorMessage = error.message || 'Login failed. Please check your credentials and try again.'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -38,6 +43,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <ConnectionStatus />
       <div className="absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute left-1/4 top-1/4 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-accent/10 blur-3xl" />
