@@ -67,13 +67,32 @@ router.get('/:id', authenticateSession, async (req: AuthRequest, res: Response) 
       return res.status(404).json({ error: 'Exit record not found' })
     }
 
-    // Get credentials
+    // Get credentials and parse JSON stored values
     const [credRows] = await pool.execute(
       'SELECT * FROM exit_credentials WHERE exit_record_id = ?',
       [req.params.id]
     )
+    
+    // Parse credentials - support both new JSON format and old format
+    const credentials = (credRows as any[]).map(cred => {
+      if (cred.field_type === 'credential') {
+        try {
+          return JSON.parse(cred.field_value)
+        } catch {
+          return cred
+        }
+      }
+      // Old format - convert to new structure
+      return {
+        label: cred.field_name,
+        url: '',
+        username: cred.field_type === 'id' ? cred.field_value : '',
+        password: cred.field_type === 'password' ? cred.field_value : '',
+        notes: cred.notes || ''
+      }
+    })
 
-    res.json({ ...exits[0], credentials: credRows })
+    res.json({ ...exits[0], credentials })
   } catch (error) {
     console.error('Get exit record error:', error)
     res.status(500).json({ error: 'Internal server error' })
@@ -128,13 +147,23 @@ router.post('/', authenticateSession, async (req: AuthRequest, res: Response) =>
 
     const exitRecordId = (result as any).insertId
 
-    // Insert credentials if provided
+    // Insert credentials if provided - store each credential as one row with JSON structure
     if (credentials && Array.isArray(credentials) && credentials.length > 0) {
       for (const cred of credentials) {
+        // New format with label, url, username, password, notes
+        const label = cred.label || 'Account'
+        const credentialData = JSON.stringify({
+          label: cred.label || '',
+          url: cred.url || '',
+          username: cred.username || '',
+          password: cred.password || '',
+          notes: cred.notes || ''
+        })
+        
         await connection.execute(
           `INSERT INTO exit_credentials (exit_record_id, field_name, field_type, field_value, notes)
            VALUES (?, ?, ?, ?, ?)`,
-          [exitRecordId, cred.field_name, cred.field_type || 'other', cred.field_value, cred.notes || null]
+          [exitRecordId, label, 'credential', credentialData, cred.notes || null]
         )
       }
     }
@@ -200,10 +229,19 @@ router.put('/:id', authenticateSession, async (req: AuthRequest, res: Response) 
 
     if (credentials && Array.isArray(credentials) && credentials.length > 0) {
       for (const cred of credentials) {
+        const label = cred.label || 'Account'
+        const credentialData = JSON.stringify({
+          label: cred.label || '',
+          url: cred.url || '',
+          username: cred.username || '',
+          password: cred.password || '',
+          notes: cred.notes || ''
+        })
+        
         await connection.execute(
           `INSERT INTO exit_credentials (exit_record_id, field_name, field_type, field_value, notes)
            VALUES (?, ?, ?, ?, ?)`,
-          [req.params.id, cred.field_name, cred.field_type || 'other', cred.field_value, cred.notes || null]
+          [req.params.id, label, 'credential', credentialData, cred.notes || null]
         )
       }
     }

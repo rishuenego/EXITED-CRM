@@ -118,4 +118,72 @@ router.delete('/:id', authenticateSession, async (req: AuthRequest, res: Respons
   }
 })
 
+// Bulk upload SIMs
+router.post('/bulk', authenticateSession, async (req: AuthRequest, res: Response) => {
+  try {
+    const { data } = req.body
+    
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ error: 'No data provided' })
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: [] as { row: number; error: string }[]
+    }
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i]
+      try {
+        const { sim_number, employee_name, status, assigned_date, notes } = row
+
+        if (!sim_number) {
+          results.failed++
+          results.errors.push({ row: i + 2, error: 'SIM number is required' })
+          continue
+        }
+
+        // Normalize status
+        let normalizedStatus = (status || 'active').toLowerCase().trim()
+        if (!['active', 'inactive', 'returned'].includes(normalizedStatus)) {
+          normalizedStatus = 'active'
+        }
+
+        // Find employee by name if provided
+        let employeeId = null
+        if (employee_name && employee_name.trim()) {
+          const [employees] = await pool.execute(
+            'SELECT id FROM employees_table WHERE full_name LIKE ? LIMIT 1',
+            [`%${employee_name.trim()}%`]
+          )
+          const empRows = employees as any[]
+          if (empRows.length > 0) {
+            employeeId = empRows[0].id
+          }
+        }
+
+        await pool.execute(
+          `INSERT INTO simcards_table (sim_number, employee_id, status, assigned_date, notes)
+           VALUES (?, ?, ?, ?, ?)`,
+          [sim_number, employeeId, normalizedStatus, assigned_date || null, notes || null]
+        )
+        results.success++
+      } catch (error: any) {
+        results.failed++
+        if (error.code === 'ER_DUP_ENTRY') {
+          results.errors.push({ row: i + 2, error: 'SIM number already exists' })
+        } else {
+          results.errors.push({ row: i + 2, error: error.message || 'Unknown error' })
+        }
+      }
+    }
+
+    res.json(results)
+  } catch (error) {
+    console.error('Bulk upload SIMs error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router

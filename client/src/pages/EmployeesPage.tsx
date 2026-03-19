@@ -38,9 +38,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { Plus, Search, Pencil, Trash2, Users, Loader2 } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Users, Loader2, Upload } from 'lucide-react'
 import api from '@/lib/api'
 import { formatDate } from '@/lib/utils'
+import BulkUploadDialog from '@/components/BulkUploadDialog'
 
 interface Employee {
   id: number
@@ -75,6 +76,7 @@ export default function EmployeesPage() {
   const [departmentFilter, setDepartmentFilter] = useState('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [formData, setFormData] = useState(emptyEmployee)
 
@@ -180,10 +182,16 @@ export default function EmployeesPage() {
             Manage all employee records
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Employee
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Upload
+          </Button>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Employee
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -334,14 +342,14 @@ export default function EmployeesPage() {
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="employee_id">Employee ID</Label>
+                  <Label htmlFor="employee_id">Employee ID (Optional)</Label>
                   <Input
                     id="employee_id"
                     value={formData.employee_id}
                     onChange={(e) =>
                       setFormData({ ...formData, employee_id: e.target.value })
                     }
-                    required
+                    placeholder="Auto-generated if empty"
                   />
                 </div>
                 <div className="space-y-2">
@@ -467,6 +475,14 @@ export default function EmployeesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Upload Dialog */}
+      <BulkUploadDialog
+        open={isBulkUploadOpen}
+        onOpenChange={setIsBulkUploadOpen}
+        type="employees"
+        onSuccess={fetchEmployees}
+      />
     </div>
   )
 }

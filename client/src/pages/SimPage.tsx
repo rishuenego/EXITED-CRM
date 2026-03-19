@@ -39,9 +39,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { Plus, Search, Pencil, Trash2, Smartphone, Loader2 } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Smartphone, Loader2, Upload } from 'lucide-react'
 import api from '@/lib/api'
 import { formatDate } from '@/lib/utils'
+import BulkUploadDialog from '@/components/BulkUploadDialog'
 
 interface Sim {
   id: number
@@ -49,7 +50,6 @@ interface Sim {
   employee_id: number
   employee_name: string
   employee_status: string
-  provider: string
   status: 'active' | 'inactive' | 'returned'
   assigned_date: string
   notes: string | null
@@ -67,7 +67,6 @@ interface Employee {
 const emptySim = {
   sim_number: '',
   employee_id: 0,
-  provider: 'Jio',
   status: 'active' as const,
   assigned_date: '',
   notes: '',
@@ -82,6 +81,7 @@ export default function SimPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
   const [selectedSim, setSelectedSim] = useState<Sim | null>(null)
   const [formData, setFormData] = useState(emptySim)
 
@@ -110,8 +110,7 @@ export default function SimPage() {
       const matchesSearch =
         searchTerm === '' ||
         sim.sim_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sim.employee_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sim.provider.toLowerCase().includes(searchTerm.toLowerCase())
+        sim.employee_name?.toLowerCase().includes(searchTerm.toLowerCase())
 
       const matchesStatus =
         statusFilter === 'all' || sim.status === statusFilter
@@ -126,7 +125,6 @@ export default function SimPage() {
       setFormData({
         sim_number: sim.sim_number,
         employee_id: sim.employee_id,
-        provider: sim.provider,
         status: sim.status,
         assigned_date: sim.assigned_date || '',
         notes: sim.notes || '',
@@ -212,10 +210,16 @@ export default function SimPage() {
             Manage SIM card allocations and tracking
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add SIM Card
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Upload
+          </Button>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add SIM Card
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -225,7 +229,7 @@ export default function SimPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search by SIM number, employee, or provider..."
+                placeholder="Search by SIM number or employee..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
@@ -276,7 +280,6 @@ export default function SimPage() {
                     <TableHead>SIM Number</TableHead>
                     <TableHead>Assigned To</TableHead>
                     <TableHead>Employee Status</TableHead>
-                    <TableHead>Provider</TableHead>
                     <TableHead>SIM Status</TableHead>
                     <TableHead>Assigned Date</TableHead>
                     <TableHead>Notes</TableHead>
@@ -305,7 +308,6 @@ export default function SimPage() {
                           {sim.employee_status === 'active' ? 'Active' : 'Exited'}
                         </Badge>
                       </TableCell>
-                      <TableCell>{sim.provider}</TableCell>
                       <TableCell>{getStatusBadge(sim.status)}</TableCell>
                       <TableCell>
                         {sim.assigned_date ? formatDate(sim.assigned_date) : '-'}
@@ -355,37 +357,16 @@ export default function SimPage() {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="sim_number">SIM Number</Label>
-                  <Input
-                    id="sim_number"
-                    value={formData.sim_number}
-                    onChange={(e) =>
-                      setFormData({ ...formData, sim_number: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="provider">Provider</Label>
-                  <Select
-                    value={formData.provider}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, provider: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Jio">Jio</SelectItem>
-                      <SelectItem value="Airtel">Airtel</SelectItem>
-                      <SelectItem value="VI">VI</SelectItem>
-                      <SelectItem value="BSNL">BSNL</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="sim_number">SIM Number</Label>
+                <Input
+                  id="sim_number"
+                  value={formData.sim_number}
+                  onChange={(e) =>
+                    setFormData({ ...formData, sim_number: e.target.value })
+                  }
+                  required
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -505,6 +486,14 @@ export default function SimPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Upload Dialog */}
+      <BulkUploadDialog
+        open={isBulkUploadOpen}
+        onOpenChange={setIsBulkUploadOpen}
+        type="sims"
+        onSuccess={fetchData}
+      />
     </div>
   )
 }
