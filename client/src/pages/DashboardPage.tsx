@@ -68,6 +68,7 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardStats | null>(null)
   const [timeFilter, setTimeFilter] = useState('all')
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchDashboardData()
@@ -75,11 +76,16 @@ export default function DashboardPage() {
 
   const fetchDashboardData = async () => {
     setIsLoading(true)
+    setError(null)
     try {
+      console.log('[v0] Fetching dashboard data...')
       const response = await api.get('/dashboard/stats')
+      console.log('[v0] Dashboard data received:', response.data)
       setDashboardData(response.data)
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error)
+    } catch (error: any) {
+      console.error('[v0] Failed to fetch dashboard data:', error)
+      console.error('[v0] Error details:', error.response?.data || error.message)
+      setError(error.response?.data?.error || error.message || 'Failed to load dashboard data')
     } finally {
       setIsLoading(false)
     }
@@ -164,6 +170,23 @@ export default function DashboardPage() {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4">
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-center">
+          <h2 className="text-lg font-semibold text-destructive">Failed to load dashboard</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{error}</p>
+          <button
+            onClick={fetchDashboardData}
+            className="mt-4 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     )
   }

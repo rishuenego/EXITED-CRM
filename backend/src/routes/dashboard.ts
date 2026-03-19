@@ -4,7 +4,7 @@ import { authenticateSession, AuthRequest } from '../middleware/auth.js'
 
 const router = Router()
 
-// Get dashboard statistics
+// Get all dashboard statistics in a single call
 router.get('/stats', authenticateSession, async (req: AuthRequest, res: Response) => {
   try {
     // Get employee counts
@@ -35,10 +35,67 @@ router.get('/stats', authenticateSession, async (req: AuthRequest, res: Response
       FROM exitrecords_table
     `)
 
+    // Get monthly exit trends
+    const [monthlyData] = await pool.execute(`
+      SELECT 
+        DATE_FORMAT(exit_date, '%b %Y') as month,
+        COUNT(*) as count,
+        SUM(CASE WHEN exit_type = 'sales' THEN 1 ELSE 0 END) as sales,
+        SUM(CASE WHEN exit_type = 'admin_digital' THEN 1 ELSE 0 END) as admin_digital
+      FROM exitrecords_table
+      WHERE exit_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+      GROUP BY DATE_FORMAT(exit_date, '%Y-%m'), DATE_FORMAT(exit_date, '%b %Y')
+      ORDER BY DATE_FORMAT(exit_date, '%Y-%m')
+    `)
+
+    // Get department distribution
+    const [departmentData] = await pool.execute(`
+      SELECT 
+        department as name,
+        COUNT(*) as count,
+        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+        SUM(CASE WHEN status = 'exited' THEN 1 ELSE 0 END) as exited
+      FROM employees_table
+      GROUP BY department
+    `)
+
+    // Get recent exits with employee names
+    const [recentExits] = await pool.execute(`
+      SELECT er.id, e.full_name as employee_name, er.exit_type, er.exit_date
+      FROM exitrecords_table er
+      JOIN employees_table e ON er.employee_id = e.id
+      ORDER BY er.exit_date DESC
+      LIMIT 5
+    `)
+
+    // Get SIM status distribution
+    const [simStatusData] = await pool.execute(`
+      SELECT status, COUNT(*) as count
+      FROM simcards_table
+      GROUP BY status
+    `)
+
+    const empStats = (employeeCounts as any[])[0]
+    const simStats = (simCounts as any[])[0]
+    const exitStats = (exitCounts as any[])[0]
+
     res.json({
-      employees: (employeeCounts as any[])[0],
-      sims: (simCounts as any[])[0],
-      exits: (exitCounts as any[])[0]
+      stats: {
+        totalEmployees: Number(empStats.total) || 0,
+        activeEmployees: Number(empStats.active) || 0,
+        exitedEmployees: Number(empStats.exited) || 0,
+        totalSims: Number(simStats.total) || 0,
+        activeSims: Number(simStats.active) || 0,
+        inactiveSims: Number(simStats.inactive) || 0,
+        returnedSims: Number(simStats.returned) || 0,
+        totalExits: Number(exitStats.total) || 0,
+        salesExits: Number(exitStats.sales) || 0,
+        adminDigitalExits: Number(exitStats.admin_digital) || 0,
+      },
+      monthlyData: monthlyData as any[],
+      departmentData: departmentData as any[],
+      recentExits: recentExits as any[],
+      simStatusData: simStatusData as any[],
     })
   } catch (error) {
     console.error('Get dashboard stats error:', error)
