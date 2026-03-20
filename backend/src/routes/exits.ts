@@ -112,6 +112,8 @@ router.post('/', authenticateSession, async (req: AuthRequest, res: Response) =>
       exit_date,
       sim_taken,
       whatsapp_logged_out,
+      crm_mail_removed,
+      dialer_removed,
       laptop_taken,
       sim_given_to,
       laptop_given_to,
@@ -127,15 +129,17 @@ router.post('/', authenticateSession, async (req: AuthRequest, res: Response) =>
     // Create exit record
     const [result] = await connection.execute(
       `INSERT INTO exitrecords_table 
-       (employee_id, exit_type, exit_date, sim_taken, whatsapp_logged_out, laptop_taken, 
+       (employee_id, exit_type, exit_date, sim_taken, whatsapp_logged_out, crm_mail_removed, dialer_removed, laptop_taken, 
         sim_given_to, laptop_given_to, accessories, remarks, processed_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         employee_id,
         exit_type,
         exit_date,
         sim_taken || false,
         whatsapp_logged_out || false,
+        crm_mail_removed || false,
+        dialer_removed || false,
         laptop_taken || null,
         sim_given_to || null,
         laptop_given_to || null,
@@ -197,6 +201,8 @@ router.put('/:id', authenticateSession, async (req: AuthRequest, res: Response) 
       exit_date,
       sim_taken,
       whatsapp_logged_out,
+      crm_mail_removed,
+      dialer_removed,
       laptop_taken,
       sim_given_to,
       laptop_given_to,
@@ -208,13 +214,16 @@ router.put('/:id', authenticateSession, async (req: AuthRequest, res: Response) 
     await connection.execute(
       `UPDATE exitrecords_table SET 
        exit_type = ?, exit_date = ?, sim_taken = ?, whatsapp_logged_out = ?, 
-       laptop_taken = ?, sim_given_to = ?, laptop_given_to = ?, accessories = ?, remarks = ?
+       crm_mail_removed = ?, dialer_removed = ?, laptop_taken = ?, sim_given_to = ?, 
+       laptop_given_to = ?, accessories = ?, remarks = ?
        WHERE id = ?`,
       [
         exit_type,
         exit_date,
         sim_taken,
         whatsapp_logged_out,
+        crm_mail_removed || false,
+        dialer_removed || false,
         laptop_taken,
         sim_given_to,
         laptop_given_to,

@@ -24,6 +24,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Table,
   TableBody,
   TableCell,
@@ -42,6 +52,10 @@ import {
   Briefcase,
   Monitor,
   Key,
+  Pencil,
+  Trash2,
+  Phone,
+  Mail,
 } from 'lucide-react'
 import api from '@/lib/api'
 import { formatDate } from '@/lib/utils'
@@ -63,12 +77,15 @@ interface ExitRecord {
   exit_date: string
   sim_taken: boolean
   whatsapp_logged_out: boolean
+  crm_mail_removed: boolean
+  dialer_removed: boolean
   laptop_taken: boolean
   sim_given_to: string | null
   laptop_given_to: string | null
   accessories: string | null
   created_by: string
   created_at: string
+  credentials?: Credential[]
 }
 
 interface Credential {
@@ -86,6 +103,8 @@ interface ExitFormData {
   exit_date: string
   sim_taken: boolean
   whatsapp_logged_out: boolean
+  crm_mail_removed: boolean
+  dialer_removed: boolean
   laptop_taken: boolean
   sim_given_to: string
   laptop_given_to: string
@@ -99,6 +118,8 @@ const emptyFormData: ExitFormData = {
   exit_date: new Date().toISOString().split('T')[0],
   sim_taken: false,
   whatsapp_logged_out: false,
+  crm_mail_removed: false,
+  dialer_removed: false,
   laptop_taken: false,
   sim_given_to: '',
   laptop_given_to: '',
@@ -125,6 +146,8 @@ export default function ExitPage() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
   const [selectedRecord, setSelectedRecord] = useState<(ExitRecord & { credentials?: Credential[] }) | null>(null)
   const [formData, setFormData] = useState<ExitFormData>(emptyFormData)
 
@@ -161,8 +184,29 @@ export default function ExitPage() {
     })
   }, [exitRecords, searchTerm, typeFilter])
 
-  const handleOpenDialog = () => {
-    setFormData(emptyFormData)
+  const handleOpenDialog = (record?: ExitRecord) => {
+    if (record) {
+      setIsEditMode(true)
+      setSelectedRecord(record)
+      setFormData({
+        employee_id: record.employee_id,
+        exit_type: record.exit_type,
+        exit_date: record.exit_date?.split('T')[0] || '',
+        sim_taken: record.sim_taken,
+        whatsapp_logged_out: record.whatsapp_logged_out,
+        crm_mail_removed: record.crm_mail_removed,
+        dialer_removed: record.dialer_removed,
+        laptop_taken: record.laptop_taken,
+        sim_given_to: record.sim_given_to || '',
+        laptop_given_to: record.laptop_given_to || '',
+        accessories: record.accessories || '',
+        credentials: record.credentials || [],
+      })
+    } else {
+      setIsEditMode(false)
+      setSelectedRecord(null)
+      setFormData(emptyFormData)
+    }
     setIsDialogOpen(true)
   }
 
@@ -176,24 +220,59 @@ export default function ExitPage() {
     }
   }
 
+  const handleEditRecord = async (record: ExitRecord) => {
+    try {
+      const response = await api.get(`/exits/${record.id}`)
+      handleOpenDialog(response.data)
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to load exit record for editing')
+    }
+  }
+
+  const handleDeleteClick = (record: ExitRecord) => {
+    setSelectedRecord(record)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (!selectedRecord) return
+    
+    try {
+      await api.delete(`/exits/${selectedRecord.id}`)
+      toast.success('Exit record deleted successfully')
+      setIsDeleteDialogOpen(false)
+      setSelectedRecord(null)
+      fetchData()
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to delete exit record')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.employee_id) {
+    if (!formData.employee_id && !isEditMode) {
       toast.error('Please select an employee')
       return
     }
     setIsSubmitting(true)
 
     try {
-      await api.post('/exits', {
-        ...formData,
-        created_by: user?.full_name || 'System',
-      })
-      toast.success('Exit record created successfully')
+      if (isEditMode && selectedRecord) {
+        await api.put(`/exits/${selectedRecord.id}`, formData)
+        toast.success('Exit record updated successfully')
+      } else {
+        await api.post('/exits', {
+          ...formData,
+          created_by: user?.full_name || 'System',
+        })
+        toast.success('Exit record created successfully')
+      }
       setIsDialogOpen(false)
+      setIsEditMode(false)
+      setSelectedRecord(null)
       fetchData()
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to create exit record')
+      toast.error(error.response?.data?.error || `Failed to ${isEditMode ? 'update' : 'create'} exit record`)
     } finally {
       setIsSubmitting(false)
     }
@@ -296,7 +375,9 @@ export default function ExitPage() {
                     <TableHead>Exit Type</TableHead>
                     <TableHead>Exit Date</TableHead>
                     <TableHead>SIM Taken</TableHead>
-                    <TableHead>WhatsApp Logged Out</TableHead>
+                    <TableHead>WhatsApp</TableHead>
+                    <TableHead>CRM/Mail</TableHead>
+                    <TableHead>Dialer</TableHead>
                     <TableHead>Processed By</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -342,15 +423,61 @@ export default function ExitPage() {
                           {record.whatsapp_logged_out ? 'Yes' : 'No'}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            record.crm_mail_removed
+                              ? 'bg-success/20 text-success'
+                              : 'bg-destructive/20 text-destructive'
+                          }
+                        >
+                          {record.crm_mail_removed ? 'Yes' : 'No'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {record.exit_type === 'sales' ? (
+                          <Badge
+                            className={
+                              record.dialer_removed
+                                ? 'bg-success/20 text-success'
+                                : 'bg-destructive/20 text-destructive'
+                            }
+                          >
+                            {record.dialer_removed ? 'Yes' : 'No'}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">N/A</span>
+                        )}
+                      </TableCell>
                       <TableCell>{record.created_by}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleViewRecord(record)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleViewRecord(record)}
+                            title="View"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditRecord(record)}
+                            title="Edit"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteClick(record)}
+                            title="Delete"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -361,13 +488,19 @@ export default function ExitPage() {
         </CardContent>
       </Card>
 
-      {/* Create Exit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      {/* Create/Edit Exit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open)
+        if (!open) {
+          setIsEditMode(false)
+          setSelectedRecord(null)
+        }
+      }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Process Employee Exit</DialogTitle>
+            <DialogTitle>{isEditMode ? 'Edit Exit Record' : 'Process Employee Exit'}</DialogTitle>
             <DialogDescription>
-              Fill in the exit details and handover information
+              {isEditMode ? 'Update the exit details and handover information' : 'Fill in the exit details and handover information'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
@@ -456,6 +589,38 @@ export default function ExitPage() {
                       />
                     </div>
                   </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label className="flex items-center gap-2">
+                          <Mail className="h-4 w-4" />
+                          CRM/Mail Removed
+                        </Label>
+                        <p className="text-sm text-muted-foreground">Was CRM/Mail access removed?</p>
+                      </div>
+                      <Switch
+                        checked={formData.crm_mail_removed}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, crm_mail_removed: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label className="flex items-center gap-2">
+                          <Phone className="h-4 w-4" />
+                          Dialer Removed
+                        </Label>
+                        <p className="text-sm text-muted-foreground">Was Dialer access removed?</p>
+                      </div>
+                      <Switch
+                        checked={formData.dialer_removed}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, dialer_removed: checked })
+                        }
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="sim_given_to">SIM Given To</Label>
                     <Input
@@ -510,6 +675,21 @@ export default function ExitPage() {
                     </div>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label className="flex items-center gap-2">
+                          <Mail className="h-4 w-4" />
+                          CRM/Mail Removed
+                        </Label>
+                        <p className="text-sm text-muted-foreground">Was CRM/Mail access removed?</p>
+                      </div>
+                      <Switch
+                        checked={formData.crm_mail_removed}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, crm_mail_removed: checked })
+                        }
+                      />
+                    </div>
                     <div className="flex items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
                         <Label>Laptop Taken</Label>
@@ -670,10 +850,10 @@ export default function ExitPage() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
+                    {isEditMode ? 'Updating...' : 'Processing...'}
                   </>
                 ) : (
-                  'Process Exit'
+                  isEditMode ? 'Update Exit Record' : 'Process Exit'
                 )}
               </Button>
             </DialogFooter>
@@ -747,6 +927,38 @@ export default function ExitPage() {
                       {selectedRecord.whatsapp_logged_out ? 'Yes' : 'No'}
                     </Badge>
                   </div>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <span className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      CRM/Mail Removed
+                    </span>
+                    <Badge
+                      className={
+                        selectedRecord.crm_mail_removed
+                          ? 'bg-success/20 text-success'
+                          : 'bg-destructive/20 text-destructive'
+                      }
+                    >
+                      {selectedRecord.crm_mail_removed ? 'Yes' : 'No'}
+                    </Badge>
+                  </div>
+                  {selectedRecord.exit_type === 'sales' && (
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <span className="flex items-center gap-2">
+                        <Phone className="h-4 w-4" />
+                        Dialer Removed
+                      </span>
+                      <Badge
+                        className={
+                          selectedRecord.dialer_removed
+                            ? 'bg-success/20 text-success'
+                            : 'bg-destructive/20 text-destructive'
+                        }
+                      >
+                        {selectedRecord.dialer_removed ? 'Yes' : 'No'}
+                      </Badge>
+                    </div>
+                  )}
                   {selectedRecord.exit_type === 'admin_digital' && (
                     <div className="flex items-center justify-between rounded-lg border p-3">
                       <span>Laptop Taken</span>
@@ -856,6 +1068,29 @@ export default function ExitPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the exit record for{' '}
+              <strong>{selectedRecord?.employee_name}</strong>. The employee status will be
+              reverted to active. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
