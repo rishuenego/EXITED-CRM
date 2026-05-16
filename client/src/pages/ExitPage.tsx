@@ -535,9 +535,9 @@ export default function ExitPage() {
           <form onSubmit={handleSubmit}>
             <Tabs
               value={formData.exit_type}
-onValueChange={(value) =>
-  setFormData({ ...formData, exit_type: value as 'sales' | 'admin_digital' | 'hr' | 'accounts' | 'director' })
-  }
+              onValueChange={(value) =>
+                setFormData({ ...formData, exit_type: value as 'sales' | 'admin_digital' | 'hr' | 'accounts' | 'director' })
+              }
               className="w-full"
             >
               <TabsList className="grid w-full grid-cols-5">
