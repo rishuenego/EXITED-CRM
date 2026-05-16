@@ -94,7 +94,7 @@ router.put('/:id', authenticateSession, async (req: AuthRequest, res: Response) 
     await pool.execute(
       `UPDATE simcards_table SET sim_number = ?, phone_number = ?, employee_id = ?, provider = ?, 
        status = ?, assigned_date = ?, notes = ? WHERE id = ?`,
-      [sim_number, phone_number, employee_id || null, provider, status, assigned_date, notes, req.params.id]
+      [sim_number || null, phone_number || null, employee_id || null, provider || null, status || 'active', assigned_date || null, notes || null, req.params.id]
     )
 
     res.json({ message: 'SIM updated successfully' })

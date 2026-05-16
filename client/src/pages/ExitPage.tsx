@@ -56,10 +56,16 @@ import {
   Trash2,
   Phone,
   Mail,
+  Upload,
+  CalendarIcon,
 } from 'lucide-react'
 import api from '@/lib/api'
-import { formatDate } from '@/lib/utils'
+import { formatDate, cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
+import BulkUploadDialog from '@/components/BulkUploadDialog'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { format } from 'date-fns'
 
 interface Employee {
   id: number
@@ -73,7 +79,7 @@ interface ExitRecord {
   id: number
   employee_id: number
   employee_name: string
-  exit_type: 'sales' | 'admin_digital'
+  exit_type: 'sales' | 'admin_digital' | 'hr' | 'accounts' | 'director'
   exit_date: string
   sim_taken: boolean
   whatsapp_logged_out: boolean
@@ -81,8 +87,11 @@ interface ExitRecord {
   dialer_removed: boolean
   laptop_taken: boolean
   sim_given_to: string | null
+  sim_given_to_name: string | null
   laptop_given_to: string | null
+  laptop_given_to_name: string | null
   accessories: string | null
+  reason: string | null
   created_by: string
   created_at: string
   credentials?: Credential[]
@@ -99,7 +108,7 @@ interface Credential {
 
 interface ExitFormData {
   employee_id: number
-  exit_type: 'sales' | 'admin_digital'
+  exit_type: 'sales' | 'admin_digital' | 'hr' | 'accounts' | 'director'
   exit_date: string
   sim_taken: boolean
   whatsapp_logged_out: boolean
@@ -109,6 +118,7 @@ interface ExitFormData {
   sim_given_to: string
   laptop_given_to: string
   accessories: string
+  reason: string
   credentials: Credential[]
 }
 
@@ -124,6 +134,7 @@ const emptyFormData: ExitFormData = {
   sim_given_to: '',
   laptop_given_to: '',
   accessories: '',
+  reason: '',
   credentials: [],
 }
 
@@ -147,7 +158,9 @@ export default function ExitPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([])
   const [selectedRecord, setSelectedRecord] = useState<(ExitRecord & { credentials?: Credential[] }) | null>(null)
   const [formData, setFormData] = useState<ExitFormData>(emptyFormData)
 
@@ -158,12 +171,14 @@ export default function ExitPage() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      const [exitsResponse, employeesResponse] = await Promise.all([
+      const [exitsResponse, employeesResponse, allEmployeesResponse] = await Promise.all([
         api.get('/exits'),
-        api.get('/employees?status=active')
+        api.get('/employees?status=active'),
+        api.get('/employees')
       ])
       setExitRecords(exitsResponse.data)
       setEmployees(employeesResponse.data)
+      setAllEmployees(allEmployeesResponse.data)
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to fetch data')
     } finally {
@@ -190,7 +205,7 @@ export default function ExitPage() {
       setSelectedRecord(record)
       setFormData({
         employee_id: record.employee_id,
-        exit_type: record.exit_type,
+        exit_type: record.exit_type as 'sales' | 'admin_digital' | 'hr' | 'accounts' | 'director',
         exit_date: record.exit_date?.split('T')[0] || '',
         sim_taken: record.sim_taken,
         whatsapp_logged_out: record.whatsapp_logged_out,
@@ -200,6 +215,7 @@ export default function ExitPage() {
         sim_given_to: record.sim_given_to || '',
         laptop_given_to: record.laptop_given_to || '',
         accessories: record.accessories || '',
+        reason: record.reason || '',
         credentials: record.credentials || [],
       })
     } else {
@@ -311,10 +327,16 @@ export default function ExitPage() {
             Process employee exits and manage handover documentation
           </p>
         </div>
-        <Button onClick={handleOpenDialog}>
-          <Plus className="mr-2 h-4 w-4" />
-          Process Exit
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Upload
+          </Button>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="mr-2 h-4 w-4" />
+            Process Exit
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -338,6 +360,9 @@ export default function ExitPage() {
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="sales">Sales</SelectItem>
                 <SelectItem value="admin_digital">Admin/Digital</SelectItem>
+                <SelectItem value="hr">HR</SelectItem>
+                <SelectItem value="accounts">Accounts</SelectItem>
+                <SelectItem value="director">Director</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -397,7 +422,11 @@ export default function ExitPage() {
                           ) : (
                             <Monitor className="h-3 w-3" />
                           )}
-                          {record.exit_type === 'sales' ? 'Sales' : 'Admin/Digital'}
+                          {record.exit_type === 'sales' ? 'Sales' : 
+                           record.exit_type === 'admin_digital' ? 'Admin/Digital' :
+                           record.exit_type === 'hr' ? 'HR' :
+                           record.exit_type === 'accounts' ? 'Accounts' :
+                           record.exit_type === 'director' ? 'Director' : record.exit_type}
                         </Badge>
                       </TableCell>
                       <TableCell>{formatDate(record.exit_date)}</TableCell>
@@ -506,21 +535,30 @@ export default function ExitPage() {
           <form onSubmit={handleSubmit}>
             <Tabs
               value={formData.exit_type}
-              onValueChange={(value) =>
-                setFormData({ ...formData, exit_type: value as 'sales' | 'admin_digital' })
-              }
-              className="w-full"
-            >
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="sales" className="flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" />
-                  Sales
-                </TabsTrigger>
-                <TabsTrigger value="admin_digital" className="flex items-center gap-2">
-                  <Monitor className="h-4 w-4" />
-                  Admin/Digital
-                </TabsTrigger>
-              </TabsList>
+onValueChange={(value) =>
+  setFormData({ ...formData, exit_type: value as 'sales' | 'admin_digital' | 'hr' | 'accounts' | 'director' })
+  }
+  className="w-full"
+  >
+> <TabsList className="grid w-full grid-cols-5">
+  <TabsTrigger value="sales" className="flex items-center gap-2">
+  <Briefcase className="h-4 w-4" />
+  Sales
+  </TabsTrigger>
+  <TabsTrigger value="admin_digital" className="flex items-center gap-2">
+  <Monitor className="h-4 w-4" />
+> Admin
+  </TabsTrigger>
+  <TabsTrigger value="hr" className="flex items-center gap-2">
+  HR
+  </TabsTrigger>
+  <TabsTrigger value="accounts" className="flex items-center gap-2">
+  Accounts
+  </TabsTrigger>
+  <TabsTrigger value="director" className="flex items-center gap-2">
+  Director
+  </TabsTrigger>
+  </TabsList>
 
               <div className="mt-6 space-y-6">
                 {/* Common Fields */}
@@ -539,27 +577,60 @@ export default function ExitPage() {
                       <SelectContent>
                         {employees.map((emp) => (
                           <SelectItem key={emp.id} value={emp.id.toString()}>
-                            {emp.full_name} - {emp.department === 'sales' ? 'Sales' : 'Admin/Digital'}
+                            {emp.full_name} - {emp.department === 'sales' ? 'Sales' : 
+                           emp.department === 'admin_digital' ? 'Admin/Digital' :
+                           emp.department === 'hr' ? 'HR' :
+                           emp.department === 'accounts' ? 'Accounts' :
+                           emp.department === 'director' ? 'Director' : emp.department}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="exit_date">Exit Date</Label>
-                    <Input
-                      id="exit_date"
-                      type="date"
-                      value={formData.exit_date}
-                      onChange={(e) =>
-                        setFormData({ ...formData, exit_date: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                </div>
+  <div className="space-y-2">
+> <Label htmlFor="exit_date">Exit Date</Label>
+  <Popover>
+    <PopoverTrigger asChild>
+      <Button
+        variant="outline"
+        className={cn(
+          "w-full justify-start text-left font-normal",
+          !formData.exit_date && "text-muted-foreground"
+        )}
+      >
+        <CalendarIcon className="mr-2 h-4 w-4" />
+        {formData.exit_date ? format(new Date(formData.exit_date), "PPP") : "Pick a date"}
+      </Button>
+    </PopoverTrigger>
+    <PopoverContent className="w-auto p-0" align="start">
+      <Calendar
+        mode="single"
+        selected={formData.exit_date ? new Date(formData.exit_date) : undefined}
+        onSelect={(date) =>
+          setFormData({ ...formData, exit_date: date ? format(date, "yyyy-MM-dd") : '' })
+        }
+        initialFocus
+      />
+    </PopoverContent>
+  </Popover>
+  </div>
+  </div>
 
-                <Separator />
+  {/* Reason Field */}
+  <div className="space-y-2">
+    <Label htmlFor="reason">Reason for Exit</Label>
+    <Textarea
+      id="reason"
+      placeholder="Enter the reason for exit (e.g., Resignation, Termination, etc.)"
+      value={formData.reason}
+      onChange={(e) =>
+        setFormData({ ...formData, reason: e.target.value })
+      }
+      rows={2}
+    />
+  </div>
+  
+  <Separator />
 
                 {/* Sales Tab Content */}
                 <TabsContent value="sales" className="mt-0 space-y-4">
@@ -621,17 +692,27 @@ export default function ExitPage() {
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sim_given_to">SIM Given To</Label>
-                    <Input
-                      id="sim_given_to"
-                      placeholder="Enter employee name who received the SIM"
-                      value={formData.sim_given_to}
-                      onChange={(e) =>
-                        setFormData({ ...formData, sim_given_to: e.target.value })
-                      }
-                    />
-                  </div>
+  <div className="space-y-2">
+> <Label htmlFor="sim_given_to">SIM Given To</Label>
+  <Select
+    value={formData.sim_given_to}
+    onValueChange={(value) =>
+      setFormData({ ...formData, sim_given_to: value })
+    }
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select employee" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="">None</SelectItem>
+      {allEmployees.filter(e => e.status === 'active').map((emp) => (
+        <SelectItem key={emp.id} value={emp.id.toString()}>
+          {emp.full_name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+  </div>
                   <div className="space-y-2">
                     <Label htmlFor="accessories">Other Accessories</Label>
                     <Textarea
@@ -704,27 +785,47 @@ export default function ExitPage() {
                     </div>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="sim_given_to_admin">SIM Given To</Label>
-                      <Input
-                        id="sim_given_to_admin"
-                        placeholder="Employee name"
-                        value={formData.sim_given_to}
-                        onChange={(e) =>
-                          setFormData({ ...formData, sim_given_to: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="laptop_given_to">Laptop Given To</Label>
-                      <Input
-                        id="laptop_given_to"
-                        placeholder="Employee name"
-                        value={formData.laptop_given_to}
-                        onChange={(e) =>
-                          setFormData({ ...formData, laptop_given_to: e.target.value })
-                        }
-                      />
+  <div className="space-y-2">
+> <Label htmlFor="sim_given_to_admin">SIM Given To</Label>
+  <Select
+    value={formData.sim_given_to}
+    onValueChange={(value) =>
+      setFormData({ ...formData, sim_given_to: value })
+    }
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select employee" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="">None</SelectItem>
+      {allEmployees.filter(e => e.status === 'active').map((emp) => (
+        <SelectItem key={emp.id} value={emp.id.toString()}>
+          {emp.full_name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+  </div>
+  <div className="space-y-2">
+  <Label htmlFor="laptop_given_to">Laptop Given To</Label>
+  <Select
+    value={formData.laptop_given_to}
+    onValueChange={(value) =>
+      setFormData({ ...formData, laptop_given_to: value })
+    }
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select employee" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="">None</SelectItem>
+      {allEmployees.filter(e => e.status === 'active').map((emp) => (
+        <SelectItem key={emp.id} value={emp.id.toString()}>
+          {emp.full_name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
                     </div>
                   </div>
 
@@ -835,6 +936,348 @@ export default function ExitPage() {
                     />
                   </div>
                 </TabsContent>
+
+                {/* HR Tab Content - Same as Admin/Digital */}
+                <TabsContent value="hr" className="mt-0 space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label>SIM Taken</Label>
+                        <p className="text-sm text-muted-foreground">Was the SIM card collected?</p>
+                      </div>
+                      <Switch
+                        checked={formData.sim_taken}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, sim_taken: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label>WhatsApp Logged Out</Label>
+                        <p className="text-sm text-muted-foreground">Was WhatsApp logged out?</p>
+                      </div>
+                      <Switch
+                        checked={formData.whatsapp_logged_out}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, whatsapp_logged_out: checked })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label className="flex items-center gap-2">
+                          <Mail className="h-4 w-4" />
+                          CRM/Mail Removed
+                        </Label>
+                        <p className="text-sm text-muted-foreground">Was CRM/Mail access removed?</p>
+                      </div>
+                      <Switch
+                        checked={formData.crm_mail_removed}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, crm_mail_removed: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label>Laptop Taken</Label>
+                        <p className="text-sm text-muted-foreground">Was the laptop collected?</p>
+                      </div>
+                      <Switch
+                        checked={formData.laptop_taken}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, laptop_taken: checked })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>SIM Given To</Label>
+                      <Select
+                        value={formData.sim_given_to}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, sim_given_to: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {allEmployees.filter(e => e.status === 'active').map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Laptop Given To</Label>
+                      <Select
+                        value={formData.laptop_given_to}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, laptop_given_to: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {allEmployees.filter(e => e.status === 'active').map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Other Accessories</Label>
+                    <Textarea
+                      placeholder="List any other accessories collected (e.g., ID card, keys, mouse, etc.)"
+                      value={formData.accessories}
+                      onChange={(e) =>
+                        setFormData({ ...formData, accessories: e.target.value })
+                      }
+                      rows={3}
+                    />
+                  </div>
+                </TabsContent>
+
+                {/* Accounts Tab Content - Same as Admin/Digital */}
+                <TabsContent value="accounts" className="mt-0 space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label>SIM Taken</Label>
+                        <p className="text-sm text-muted-foreground">Was the SIM card collected?</p>
+                      </div>
+                      <Switch
+                        checked={formData.sim_taken}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, sim_taken: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label>WhatsApp Logged Out</Label>
+                        <p className="text-sm text-muted-foreground">Was WhatsApp logged out?</p>
+                      </div>
+                      <Switch
+                        checked={formData.whatsapp_logged_out}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, whatsapp_logged_out: checked })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label className="flex items-center gap-2">
+                          <Mail className="h-4 w-4" />
+                          CRM/Mail Removed
+                        </Label>
+                        <p className="text-sm text-muted-foreground">Was CRM/Mail access removed?</p>
+                      </div>
+                      <Switch
+                        checked={formData.crm_mail_removed}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, crm_mail_removed: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label>Laptop Taken</Label>
+                        <p className="text-sm text-muted-foreground">Was the laptop collected?</p>
+                      </div>
+                      <Switch
+                        checked={formData.laptop_taken}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, laptop_taken: checked })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>SIM Given To</Label>
+                      <Select
+                        value={formData.sim_given_to}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, sim_given_to: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {allEmployees.filter(e => e.status === 'active').map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Laptop Given To</Label>
+                      <Select
+                        value={formData.laptop_given_to}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, laptop_given_to: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {allEmployees.filter(e => e.status === 'active').map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Other Accessories</Label>
+                    <Textarea
+                      placeholder="List any other accessories collected (e.g., ID card, keys, mouse, etc.)"
+                      value={formData.accessories}
+                      onChange={(e) =>
+                        setFormData({ ...formData, accessories: e.target.value })
+                      }
+                      rows={3}
+                    />
+                  </div>
+                </TabsContent>
+
+                {/* Director Tab Content - Same as Admin/Digital */}
+                <TabsContent value="director" className="mt-0 space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label>SIM Taken</Label>
+                        <p className="text-sm text-muted-foreground">Was the SIM card collected?</p>
+                      </div>
+                      <Switch
+                        checked={formData.sim_taken}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, sim_taken: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label>WhatsApp Logged Out</Label>
+                        <p className="text-sm text-muted-foreground">Was WhatsApp logged out?</p>
+                      </div>
+                      <Switch
+                        checked={formData.whatsapp_logged_out}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, whatsapp_logged_out: checked })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label className="flex items-center gap-2">
+                          <Mail className="h-4 w-4" />
+                          CRM/Mail Removed
+                        </Label>
+                        <p className="text-sm text-muted-foreground">Was CRM/Mail access removed?</p>
+                      </div>
+                      <Switch
+                        checked={formData.crm_mail_removed}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, crm_mail_removed: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label>Laptop Taken</Label>
+                        <p className="text-sm text-muted-foreground">Was the laptop collected?</p>
+                      </div>
+                      <Switch
+                        checked={formData.laptop_taken}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, laptop_taken: checked })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>SIM Given To</Label>
+                      <Select
+                        value={formData.sim_given_to}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, sim_given_to: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {allEmployees.filter(e => e.status === 'active').map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Laptop Given To</Label>
+                      <Select
+                        value={formData.laptop_given_to}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, laptop_given_to: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {allEmployees.filter(e => e.status === 'active').map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Other Accessories</Label>
+                    <Textarea
+                      placeholder="List any other accessories collected (e.g., ID card, keys, mouse, etc.)"
+                      value={formData.accessories}
+                      onChange={(e) =>
+                        setFormData({ ...formData, accessories: e.target.value })
+                      }
+                      rows={3}
+                    />
+                  </div>
+                </TabsContent>
               </div>
             </Tabs>
 
@@ -884,7 +1327,11 @@ export default function ExitPage() {
                   <Badge
                     variant={selectedRecord.exit_type === 'sales' ? 'default' : 'secondary'}
                   >
-                    {selectedRecord.exit_type === 'sales' ? 'Sales' : 'Admin/Digital'}
+                    {selectedRecord.exit_type === 'sales' ? 'Sales' : 
+                           selectedRecord.exit_type === 'admin_digital' ? 'Admin/Digital' :
+                           selectedRecord.exit_type === 'hr' ? 'HR' :
+                           selectedRecord.exit_type === 'accounts' ? 'Accounts' :
+                           selectedRecord.exit_type === 'director' ? 'Director' : selectedRecord.exit_type}
                   </Badge>
                 </div>
                 <div className="space-y-1">
@@ -976,19 +1423,40 @@ export default function ExitPage() {
                 </div>
               </div>
 
-              {/* Assignment Info */}
-              {(selectedRecord.sim_given_to || selectedRecord.laptop_given_to) && (
-                <>
-                  <Separator />
-                  <div className="space-y-3">
-                    <Label className="text-base">Assignment Info</Label>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {selectedRecord.sim_given_to && (
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">SIM Given To</Label>
-                          <p className="font-medium">{selectedRecord.sim_given_to}</p>
-                        </div>
-                      )}
+  {/* Reason */}
+  {selectedRecord.reason && (
+    <>
+      <Separator />
+      <div className="space-y-2">
+        <Label className="text-base">Reason for Exit</Label>
+        <p className="text-sm">{selectedRecord.reason}</p>
+      </div>
+    </>
+  )}
+
+  {/* Assignment Info */}
+  {(selectedRecord.sim_given_to_name || selectedRecord.laptop_given_to_name) && (
+  <>
+  <Separator />
+  <div className="space-y-3">
+> <Label className="text-base">Assignment Info</Label>
+  <div className="grid gap-3 sm:grid-cols-2">
+  {selectedRecord.sim_given_to_name && (
+  <div className="space-y-1">
+  <Label className="text-xs text-muted-foreground">SIM Given To</Label>
+  <p className="font-medium">{selectedRecord.sim_given_to_name}</p>
+  </div>
+  )}
+  {selectedRecord.laptop_given_to_name && (
+  <div className="space-y-1">
+  <Label className="text-xs text-muted-foreground">Laptop Given To</Label>
+  <p className="font-medium">{selectedRecord.laptop_given_to_name}</p>
+  </div>
+  )}
+  </div>
+  </div>
+  </>
+  )}
                       {selectedRecord.laptop_given_to && (
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Laptop Given To</Label>
@@ -1091,6 +1559,14 @@ export default function ExitPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Upload Dialog */}
+      <BulkUploadDialog
+        open={isBulkUploadOpen}
+        onOpenChange={setIsBulkUploadOpen}
+        type="exits"
+        onSuccess={fetchData}
+      />
     </div>
   )
 }

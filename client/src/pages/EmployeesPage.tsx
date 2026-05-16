@@ -226,6 +226,9 @@ export default function EmployeesPage() {
                   <SelectItem value="all">All Departments</SelectItem>
                   <SelectItem value="sales">Sales</SelectItem>
                   <SelectItem value="admin_digital">Admin/Digital</SelectItem>
+                  <SelectItem value="hr">HR</SelectItem>
+                  <SelectItem value="accounts">Accounts</SelectItem>
+                  <SelectItem value="director">Director</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -279,7 +282,11 @@ export default function EmployeesPage() {
                       <TableCell>{employee.phone || '-'}</TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {employee.department === 'sales' ? 'Sales' : 'Admin/Digital'}
+                          {employee.department === 'sales' ? 'Sales' : 
+                           employee.department === 'admin_digital' ? 'Admin/Digital' :
+                           employee.department === 'hr' ? 'HR' :
+                           employee.department === 'accounts' ? 'Accounts' :
+                           employee.department === 'director' ? 'Director' : employee.department}
                         </Badge>
                       </TableCell>
                       <TableCell>{employee.designation || '-'}</TableCell>
@@ -402,6 +409,9 @@ export default function EmployeesPage() {
                     <SelectContent>
                       <SelectItem value="sales">Sales</SelectItem>
                       <SelectItem value="admin_digital">Admin/Digital</SelectItem>
+                      <SelectItem value="hr">HR</SelectItem>
+                      <SelectItem value="accounts">Accounts</SelectItem>
+                      <SelectItem value="director">Director</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

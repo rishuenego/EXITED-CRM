@@ -26,7 +26,7 @@ import api from '@/lib/api'
 interface BulkUploadDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  type: 'employees' | 'sims'
+  type: 'employees' | 'sims' | 'exits'
   onSuccess: () => void
 }
 
@@ -44,6 +44,7 @@ interface UploadResult {
 
 const EMPLOYEE_COLUMNS = ['employee_id', 'full_name', 'email', 'phone', 'department', 'designation', 'joining_date']
 const SIM_COLUMNS = ['sim_number', 'employee_name', 'status', 'assigned_date', 'notes']
+const EXIT_COLUMNS = ['employee_name', 'exit_date', 'department', 'reason']
 
 export default function BulkUploadDialog({ open, onOpenChange, type, onSuccess }: BulkUploadDialogProps) {
   const [file, setFile] = useState<File | null>(null)
@@ -52,7 +53,7 @@ export default function BulkUploadDialog({ open, onOpenChange, type, onSuccess }
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const columns = type === 'employees' ? EMPLOYEE_COLUMNS : SIM_COLUMNS
+  const columns = type === 'employees' ? EMPLOYEE_COLUMNS : type === 'sims' ? SIM_COLUMNS : EXIT_COLUMNS
 
   const downloadSampleCSV = () => {
     let headers: string
@@ -61,9 +62,12 @@ export default function BulkUploadDialog({ open, onOpenChange, type, onSuccess }
     if (type === 'employees') {
       headers = 'employee_id,full_name,email,phone,department,designation,joining_date'
       sampleRow = 'EMP001,John Doe,john@example.com,9876543210,sales,Manager,2024-01-15'
-    } else {
+    } else if (type === 'sims') {
       headers = 'sim_number,employee_name,status,assigned_date,notes'
       sampleRow = '1234567890,John Doe,active,2024-01-15,Company SIM'
+    } else {
+      headers = 'employee_name,exit_date,department,reason'
+      sampleRow = 'John Doe,2024-01-15,sales,Resignation'
     }
 
     const csvContent = `${headers}\n${sampleRow}`
@@ -95,14 +99,17 @@ export default function BulkUploadDialog({ open, onOpenChange, type, onSuccess }
       if (type === 'employees') {
         if (!data.full_name) errors.push('Full name is required')
         if (!data.department) errors.push('Department is required')
-        if (data.department && !['sales', 'admin_digital'].includes(data.department.toLowerCase())) {
-          errors.push('Department must be "sales" or "admin_digital"')
+        if (data.department && !['sales', 'admin_digital', 'hr', 'accounts', 'director'].includes(data.department.toLowerCase())) {
+          errors.push('Department must be "sales", "admin_digital", "hr", "accounts", or "director"')
         }
-      } else {
+      } else if (type === 'sims') {
         if (!data.sim_number) errors.push('SIM number is required')
         if (data.status && !['active', 'inactive', 'returned'].includes(data.status.toLowerCase())) {
           errors.push('Status must be "active", "inactive", or "returned"')
         }
+      } else {
+        if (!data.employee_name) errors.push('Employee name is required')
+        if (!data.exit_date) errors.push('Exit date is required')
       }
 
       return {
@@ -185,7 +192,7 @@ export default function BulkUploadDialog({ open, onOpenChange, type, onSuccess }
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
-            Bulk Upload {type === 'employees' ? 'Employees' : 'SIM Cards'}
+            Bulk Upload {type === 'employees' ? 'Employees' : type === 'sims' ? 'SIM Cards' : 'Exit Records'}
           </DialogTitle>
           <DialogDescription>
             Upload a CSV file to add multiple records at once

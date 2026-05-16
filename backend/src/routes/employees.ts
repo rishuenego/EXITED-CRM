@@ -96,7 +96,7 @@ router.put('/:id', authenticateSession, async (req: AuthRequest, res: Response) 
     await pool.execute(
       `UPDATE employees_table SET employee_id = ?, full_name = ?, email = ?, phone = ?, department = ?, 
        designation = ?, joining_date = ?, status = ? WHERE id = ?`,
-      [employee_id, full_name, email, phone, department, designation, joining_date, status, req.params.id]
+      [employee_id || null, full_name || null, email || null, phone || null, department || null, designation || null, joining_date || null, status || 'active', req.params.id]
     )
 
     res.json({ message: 'Employee updated successfully' })
@@ -152,9 +152,15 @@ router.post('/bulk', authenticateSession, async (req: AuthRequest, res: Response
           normalizedDepartment = 'admin_digital'
         } else if (normalizedDepartment === 'sales') {
           normalizedDepartment = 'sales'
+        } else if (normalizedDepartment === 'hr') {
+          normalizedDepartment = 'hr'
+        } else if (normalizedDepartment === 'accounts' || normalizedDepartment === 'accountant') {
+          normalizedDepartment = 'accounts'
+        } else if (normalizedDepartment === 'director') {
+          normalizedDepartment = 'director'
         } else {
           results.failed++
-          results.errors.push({ row: i + 2, error: 'Department must be "sales" or "admin_digital"' })
+          results.errors.push({ row: i + 2, error: 'Department must be "sales", "admin_digital", "hr", "accounts", or "director"' })
           continue
         }
 

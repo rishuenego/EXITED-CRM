@@ -130,6 +130,7 @@ router.post(
         laptop_given_to,
         accessories,
         remarks,
+        reason,
         credentials,
       } = req.body;
 
@@ -143,8 +144,8 @@ router.post(
       const [result] = await connection.execute(
         `INSERT INTO exitrecords_table 
        (employee_id, exit_type, exit_date, sim_taken, whatsapp_logged_out, crm_mail_removed, dialer_removed, laptop_taken, 
-        sim_given_to, laptop_given_to, accessories, remarks, processed_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sim_given_to, laptop_given_to, accessories, remarks, reason, processed_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           employee_id,
           exit_type,
@@ -158,6 +159,7 @@ router.post(
           laptop_given_to || null,
           accessories || null,
           remarks || null,
+          reason || null,
           req.user?.id,
         ],
       );
@@ -236,6 +238,7 @@ router.put(
         laptop_given_to,
         accessories,
         remarks,
+        reason,
         credentials,
       } = req.body;
 
@@ -243,7 +246,7 @@ router.put(
         `UPDATE exitrecords_table SET 
        exit_type = ?, exit_date = ?, sim_taken = ?, whatsapp_logged_out = ?, 
        crm_mail_removed = ?, dialer_removed = ?, laptop_taken = ?, sim_given_to = ?, 
-       laptop_given_to = ?, accessories = ?, remarks = ?
+       laptop_given_to = ?, accessories = ?, remarks = ?, reason = ?
        WHERE id = ?`,
         [
           exit_type,
@@ -253,10 +256,11 @@ router.put(
           crm_mail_removed || false,
           dialer_removed || false,
           laptop_taken,
-          sim_given_to,
-          laptop_given_to,
-          accessories,
-          remarks,
+          sim_given_to || null,
+          laptop_given_to || null,
+          accessories || null,
+          remarks || null,
+          reason || null,
           req.params.id,
         ],
       );
@@ -334,6 +338,126 @@ router.delete(
       res.status(500).json({ error: "Internal server error" });
     }
   },
+);
+
+// Bulk upload exit records
+router.post(
+  "/bulk",
+  authenticateSession,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { data } = req.body;
+
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        return res.status(400).json({ error: "No data provided" });
+      }
+
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: [] as { row: number; error: string }[],
+      };
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        const connection = await pool.getConnection();
+
+        try {
+          const { employee_name, exit_date, department, reason } = row;
+
+          if (!employee_name || !exit_date) {
+            results.failed++;
+            results.errors.push({
+              row: i + 2,
+              error: "Employee name and exit date are required",
+            });
+            connection.release();
+            continue;
+          }
+
+          // Find employee by name
+          const [employees] = await connection.execute(
+            "SELECT id FROM employees_table WHERE full_name LIKE ? AND status = ? LIMIT 1",
+            [`%${employee_name.trim()}%`, "active"]
+          );
+          const empRows = employees as any[];
+
+          if (empRows.length === 0) {
+            results.failed++;
+            results.errors.push({
+              row: i + 2,
+              error: `Employee "${employee_name}" not found or already exited`,
+            });
+            connection.release();
+            continue;
+          }
+
+          const employeeId = empRows[0].id;
+
+          // Normalize department/exit_type
+          let exitType = "sales";
+          if (department) {
+            const normalizedDept = department.toLowerCase().trim();
+            if (
+              normalizedDept === "admin" ||
+              normalizedDept === "admin_digital" ||
+              normalizedDept === "admin/digital" ||
+              normalizedDept === "hr" ||
+              normalizedDept === "accounts" ||
+              normalizedDept === "accountant" ||
+              normalizedDept === "director"
+            ) {
+              exitType = "admin_digital";
+            }
+          }
+
+          await connection.beginTransaction();
+
+          // Create exit record
+          await connection.execute(
+            `INSERT INTO exitrecords_table 
+             (employee_id, exit_type, exit_date, sim_taken, whatsapp_logged_out, crm_mail_removed, dialer_removed, laptop_taken, reason, processed_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              employeeId,
+              exitType,
+              exit_date,
+              false,
+              false,
+              false,
+              false,
+              false,
+              reason || null,
+              req.user?.id,
+            ]
+          );
+
+          // Update employee status to exited
+          await connection.execute(
+            "UPDATE employees_table SET status = ? WHERE id = ?",
+            ["exited", employeeId]
+          );
+
+          await connection.commit();
+          results.success++;
+        } catch (error: any) {
+          await connection.rollback();
+          results.failed++;
+          results.errors.push({
+            row: i + 2,
+            error: error.message || "Unknown error",
+          });
+        } finally {
+          connection.release();
+        }
+      }
+
+      res.json(results);
+    } catch (error) {
+      console.error("Bulk upload exits error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
 );
 
 export default router;
