@@ -273,12 +273,19 @@ export default function ExitPage() {
     setIsSubmitting(true)
 
     try {
+      // Convert "none" values to empty string for API
+      const submitData = {
+        ...formData,
+        sim_given_to: formData.sim_given_to === 'none' ? '' : formData.sim_given_to,
+        laptop_given_to: formData.laptop_given_to === 'none' ? '' : formData.laptop_given_to,
+      }
+      
       if (isEditMode && selectedRecord) {
-        await api.put(`/exits/${selectedRecord.id}`, formData)
+        await api.put(`/exits/${selectedRecord.id}`, submitData)
         toast.success('Exit record updated successfully')
       } else {
         await api.post('/exits', {
-          ...formData,
+          ...submitData,
           created_by: user?.full_name || 'System',
         })
         toast.success('Exit record created successfully')
@@ -703,7 +710,7 @@ export default function ExitPage() {
                         <SelectValue placeholder="Select employee" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {allEmployees.filter(e => e.status === 'active').map((emp) => (
                           <SelectItem key={emp.id} value={emp.id.toString()}>
                             {emp.full_name}
@@ -796,7 +803,7 @@ export default function ExitPage() {
                           <SelectValue placeholder="Select employee" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {allEmployees.filter(e => e.status === 'active').map((emp) => (
                             <SelectItem key={emp.id} value={emp.id.toString()}>
                               {emp.full_name}
@@ -817,7 +824,7 @@ export default function ExitPage() {
                           <SelectValue placeholder="Select employee" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {allEmployees.filter(e => e.status === 'active').map((emp) => (
                             <SelectItem key={emp.id} value={emp.id.toString()}>
                               {emp.full_name}
@@ -1006,7 +1013,7 @@ export default function ExitPage() {
                           <SelectValue placeholder="Select employee" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {allEmployees.filter(e => e.status === 'active').map((emp) => (
                             <SelectItem key={emp.id} value={emp.id.toString()}>
                               {emp.full_name}
@@ -1027,7 +1034,7 @@ export default function ExitPage() {
                           <SelectValue placeholder="Select employee" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {allEmployees.filter(e => e.status === 'active').map((emp) => (
                             <SelectItem key={emp.id} value={emp.id.toString()}>
                               {emp.full_name}
@@ -1120,7 +1127,7 @@ export default function ExitPage() {
                           <SelectValue placeholder="Select employee" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {allEmployees.filter(e => e.status === 'active').map((emp) => (
                             <SelectItem key={emp.id} value={emp.id.toString()}>
                               {emp.full_name}
@@ -1141,7 +1148,7 @@ export default function ExitPage() {
                           <SelectValue placeholder="Select employee" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {allEmployees.filter(e => e.status === 'active').map((emp) => (
                             <SelectItem key={emp.id} value={emp.id.toString()}>
                               {emp.full_name}
@@ -1234,7 +1241,7 @@ export default function ExitPage() {
                           <SelectValue placeholder="Select employee" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {allEmployees.filter(e => e.status === 'active').map((emp) => (
                             <SelectItem key={emp.id} value={emp.id.toString()}>
                               {emp.full_name}
@@ -1255,7 +1262,7 @@ export default function ExitPage() {
                           <SelectValue placeholder="Select employee" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {allEmployees.filter(e => e.status === 'active').map((emp) => (
                             <SelectItem key={emp.id} value={emp.id.toString()}>
                               {emp.full_name}
