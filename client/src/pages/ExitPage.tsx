@@ -538,27 +538,27 @@ export default function ExitPage() {
 onValueChange={(value) =>
   setFormData({ ...formData, exit_type: value as 'sales' | 'admin_digital' | 'hr' | 'accounts' | 'director' })
   }
-  className="w-full"
-  >
-> <TabsList className="grid w-full grid-cols-5">
-  <TabsTrigger value="sales" className="flex items-center gap-2">
-  <Briefcase className="h-4 w-4" />
-  Sales
-  </TabsTrigger>
-  <TabsTrigger value="admin_digital" className="flex items-center gap-2">
-  <Monitor className="h-4 w-4" />
-> Admin
-  </TabsTrigger>
-  <TabsTrigger value="hr" className="flex items-center gap-2">
-  HR
-  </TabsTrigger>
-  <TabsTrigger value="accounts" className="flex items-center gap-2">
-  Accounts
-  </TabsTrigger>
-  <TabsTrigger value="director" className="flex items-center gap-2">
-  Director
-  </TabsTrigger>
-  </TabsList>
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="sales" className="flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  Sales
+                </TabsTrigger>
+                <TabsTrigger value="admin_digital" className="flex items-center gap-2">
+                  <Monitor className="h-4 w-4" />
+                  Admin
+                </TabsTrigger>
+                <TabsTrigger value="hr" className="flex items-center gap-2">
+                  HR
+                </TabsTrigger>
+                <TabsTrigger value="accounts" className="flex items-center gap-2">
+                  Accounts
+                </TabsTrigger>
+                <TabsTrigger value="director" className="flex items-center gap-2">
+                  Director
+                </TabsTrigger>
+              </TabsList>
 
               <div className="mt-6 space-y-6">
                 {/* Common Fields */}
@@ -587,50 +587,50 @@ onValueChange={(value) =>
                       </SelectContent>
                     </Select>
                   </div>
-  <div className="space-y-2">
-> <Label htmlFor="exit_date">Exit Date</Label>
-  <Popover>
-    <PopoverTrigger asChild>
-      <Button
-        variant="outline"
-        className={cn(
-          "w-full justify-start text-left font-normal",
-          !formData.exit_date && "text-muted-foreground"
-        )}
-      >
-        <CalendarIcon className="mr-2 h-4 w-4" />
-        {formData.exit_date ? format(new Date(formData.exit_date), "PPP") : "Pick a date"}
-      </Button>
-    </PopoverTrigger>
-    <PopoverContent className="w-auto p-0" align="start">
-      <Calendar
-        mode="single"
-        selected={formData.exit_date ? new Date(formData.exit_date) : undefined}
-        onSelect={(date) =>
-          setFormData({ ...formData, exit_date: date ? format(date, "yyyy-MM-dd") : '' })
-        }
-        initialFocus
-      />
-    </PopoverContent>
-  </Popover>
-  </div>
-  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="exit_date">Exit Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !formData.exit_date && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formData.exit_date ? format(new Date(formData.exit_date), "PPP") : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={formData.exit_date ? new Date(formData.exit_date) : undefined}
+                          onSelect={(date) =>
+                            setFormData({ ...formData, exit_date: date ? format(date, "yyyy-MM-dd") : '' })
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
 
-  {/* Reason Field */}
-  <div className="space-y-2">
-    <Label htmlFor="reason">Reason for Exit</Label>
-    <Textarea
-      id="reason"
-      placeholder="Enter the reason for exit (e.g., Resignation, Termination, etc.)"
-      value={formData.reason}
-      onChange={(e) =>
-        setFormData({ ...formData, reason: e.target.value })
-      }
-      rows={2}
-    />
-  </div>
-  
-  <Separator />
+                {/* Reason Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="reason">Reason for Exit</Label>
+                  <Textarea
+                    id="reason"
+                    placeholder="Enter the reason for exit (e.g., Resignation, Termination, etc.)"
+                    value={formData.reason}
+                    onChange={(e) =>
+                      setFormData({ ...formData, reason: e.target.value })
+                    }
+                    rows={2}
+                  />
+                </div>
+                
+                <Separator />
 
                 {/* Sales Tab Content */}
                 <TabsContent value="sales" className="mt-0 space-y-4">
@@ -692,27 +692,27 @@ onValueChange={(value) =>
                       />
                     </div>
                   </div>
-  <div className="space-y-2">
-> <Label htmlFor="sim_given_to">SIM Given To</Label>
-  <Select
-    value={formData.sim_given_to}
-    onValueChange={(value) =>
-      setFormData({ ...formData, sim_given_to: value })
-    }
-  >
-    <SelectTrigger>
-      <SelectValue placeholder="Select employee" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="">None</SelectItem>
-      {allEmployees.filter(e => e.status === 'active').map((emp) => (
-        <SelectItem key={emp.id} value={emp.id.toString()}>
-          {emp.full_name}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sim_given_to">SIM Given To</Label>
+                    <Select
+                      value={formData.sim_given_to}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, sim_given_to: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select employee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {allEmployees.filter(e => e.status === 'active').map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id.toString()}>
+                            {emp.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="accessories">Other Accessories</Label>
                     <Textarea
@@ -785,47 +785,47 @@ onValueChange={(value) =>
                     </div>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-  <div className="space-y-2">
-> <Label htmlFor="sim_given_to_admin">SIM Given To</Label>
-  <Select
-    value={formData.sim_given_to}
-    onValueChange={(value) =>
-      setFormData({ ...formData, sim_given_to: value })
-    }
-  >
-    <SelectTrigger>
-      <SelectValue placeholder="Select employee" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="">None</SelectItem>
-      {allEmployees.filter(e => e.status === 'active').map((emp) => (
-        <SelectItem key={emp.id} value={emp.id.toString()}>
-          {emp.full_name}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-  </div>
-  <div className="space-y-2">
-  <Label htmlFor="laptop_given_to">Laptop Given To</Label>
-  <Select
-    value={formData.laptop_given_to}
-    onValueChange={(value) =>
-      setFormData({ ...formData, laptop_given_to: value })
-    }
-  >
-    <SelectTrigger>
-      <SelectValue placeholder="Select employee" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="">None</SelectItem>
-      {allEmployees.filter(e => e.status === 'active').map((emp) => (
-        <SelectItem key={emp.id} value={emp.id.toString()}>
-          {emp.full_name}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
+                    <div className="space-y-2">
+                      <Label htmlFor="sim_given_to_admin">SIM Given To</Label>
+                      <Select
+                        value={formData.sim_given_to}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, sim_given_to: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {allEmployees.filter(e => e.status === 'active').map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="laptop_given_to">Laptop Given To</Label>
+                      <Select
+                        value={formData.laptop_given_to}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, laptop_given_to: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {allEmployees.filter(e => e.status === 'active').map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
@@ -1434,33 +1434,23 @@ onValueChange={(value) =>
     </>
   )}
 
-  {/* Assignment Info */}
-  {(selectedRecord.sim_given_to_name || selectedRecord.laptop_given_to_name) && (
-  <>
-  <Separator />
-  <div className="space-y-3">
-> <Label className="text-base">Assignment Info</Label>
-  <div className="grid gap-3 sm:grid-cols-2">
-  {selectedRecord.sim_given_to_name && (
-  <div className="space-y-1">
-  <Label className="text-xs text-muted-foreground">SIM Given To</Label>
-  <p className="font-medium">{selectedRecord.sim_given_to_name}</p>
-  </div>
-  )}
-  {selectedRecord.laptop_given_to_name && (
-  <div className="space-y-1">
-  <Label className="text-xs text-muted-foreground">Laptop Given To</Label>
-  <p className="font-medium">{selectedRecord.laptop_given_to_name}</p>
-  </div>
-  )}
-  </div>
-  </div>
-  </>
-  )}
-                      {selectedRecord.laptop_given_to && (
+              {/* Assignment Info */}
+              {(selectedRecord.sim_given_to_name || selectedRecord.laptop_given_to_name) && (
+                <>
+                  <Separator />
+                  <div className="space-y-3">
+                    <Label className="text-base">Assignment Info</Label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {selectedRecord.sim_given_to_name && (
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">SIM Given To</Label>
+                          <p className="font-medium">{selectedRecord.sim_given_to_name}</p>
+                        </div>
+                      )}
+                      {selectedRecord.laptop_given_to_name && (
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Laptop Given To</Label>
-                          <p className="font-medium">{selectedRecord.laptop_given_to}</p>
+                          <p className="font-medium">{selectedRecord.laptop_given_to_name}</p>
                         </div>
                       )}
                     </div>
