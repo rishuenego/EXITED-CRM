@@ -603,14 +603,13 @@ export default function ExitPage() {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={formData.exit_date ? new Date(formData.exit_date) : undefined}
-                          onSelect={(date) =>
-                            setFormData({ ...formData, exit_date: date ? format(date, "yyyy-MM-dd") : '' })
-                          }
-                          initialFocus
-                        />
+                      <Calendar
+                        mode="single"
+                        selected={formData.exit_date ? new Date(formData.exit_date) : undefined}
+                        onSelect={(date) =>
+                          setFormData({ ...formData, exit_date: date ? format(date, "yyyy-MM-dd") : '' })
+                        }
+                      />
                       </PopoverContent>
                     </Popover>
                   </div>
