@@ -57,7 +57,7 @@ router.get('/:id', authenticateSession, async (req: AuthRequest, res: Response) 
 // Create employee
 router.post('/', authenticateSession, async (req: AuthRequest, res: Response) => {
   try {
-    const { employee_id, full_name, email, phone, department, designation, joining_date, status } = req.body
+    const { employee_id, full_name, email, phone, department, designation, joining_date, status, branch } = req.body
 
     if (!full_name || !department) {
       return res.status(400).json({ error: 'Full name and department are required' })
@@ -66,15 +66,22 @@ router.post('/', authenticateSession, async (req: AuthRequest, res: Response) =>
     // Auto-generate employee_id if not provided
     let finalEmployeeId = employee_id
     if (!finalEmployeeId || finalEmployeeId.trim() === '') {
-      const prefix = department === 'sales' ? 'SAL' : 'ADM'
+      const prefixMap: Record<string, string> = {
+        sales: 'SAL',
+        admin_digital: 'ADM',
+        hr: 'HR',
+        accounts: 'ACC',
+        director: 'DIR'
+      }
+      const prefix = prefixMap[department] || 'EMP'
       const timestamp = Date.now().toString().slice(-6)
       finalEmployeeId = `${prefix}${timestamp}`
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO employees_table (employee_id, full_name, email, phone, department, designation, joining_date, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [finalEmployeeId, full_name, email || null, phone || null, department, designation || null, joining_date || null, status || 'active']
+      `INSERT INTO employees_table (employee_id, full_name, email, phone, department, designation, joining_date, status, branch)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [finalEmployeeId, full_name, email || null, phone || null, department, designation || null, joining_date || null, status || 'active', branch || 'head_office']
     )
 
     const insertResult = result as any
@@ -91,12 +98,12 @@ router.post('/', authenticateSession, async (req: AuthRequest, res: Response) =>
 // Update employee
 router.put('/:id', authenticateSession, async (req: AuthRequest, res: Response) => {
   try {
-    const { employee_id, full_name, email, phone, department, designation, joining_date, status } = req.body
+    const { employee_id, full_name, email, phone, department, designation, joining_date, status, branch } = req.body
 
     await pool.execute(
       `UPDATE employees_table SET employee_id = ?, full_name = ?, email = ?, phone = ?, department = ?, 
-       designation = ?, joining_date = ?, status = ? WHERE id = ?`,
-      [employee_id, full_name, email, phone, department, designation, joining_date, status, req.params.id]
+       designation = ?, joining_date = ?, status = ?, branch = ? WHERE id = ?`,
+      [employee_id, full_name, email || null, phone || null, department, designation || null, joining_date || null, status || 'active', branch || 'head_office', req.params.id]
     )
 
     res.json({ message: 'Employee updated successfully' })
@@ -138,7 +145,7 @@ router.post('/bulk', authenticateSession, async (req: AuthRequest, res: Response
     for (let i = 0; i < data.length; i++) {
       const row = data[i]
       try {
-        const { employee_id, full_name, email, phone, department, designation, joining_date } = row
+        const { employee_id, full_name, email, phone, department, designation, joining_date, branch } = row
 
         if (!full_name || !department) {
           results.failed++
@@ -148,28 +155,41 @@ router.post('/bulk', authenticateSession, async (req: AuthRequest, res: Response
 
         // Normalize department value
         let normalizedDepartment = department.toLowerCase().trim()
-        if (normalizedDepartment === 'admin/digital' || normalizedDepartment === 'admin_digital' || normalizedDepartment === 'admin') {
+        const validDepartments = ['sales', 'admin_digital', 'admin', 'hr', 'accounts', 'director']
+        if (normalizedDepartment === 'admin/digital' || normalizedDepartment === 'admin') {
           normalizedDepartment = 'admin_digital'
-        } else if (normalizedDepartment === 'sales') {
-          normalizedDepartment = 'sales'
-        } else {
+        } else if (!validDepartments.includes(normalizedDepartment)) {
           results.failed++
-          results.errors.push({ row: i + 2, error: 'Department must be "sales" or "admin_digital"' })
+          results.errors.push({ row: i + 2, error: 'Invalid department value' })
           continue
+        }
+
+        // Normalize branch value
+        let normalizedBranch = (branch || 'head_office').toLowerCase().trim().replace(/\s+/g, '_')
+        const validBranches = ['head_office', 'branch_1', 'branch_2', 'branch_3']
+        if (!validBranches.includes(normalizedBranch)) {
+          normalizedBranch = 'head_office'
         }
 
         // Auto-generate employee_id if not provided
         let finalEmployeeId = employee_id
         if (!finalEmployeeId || finalEmployeeId.trim() === '') {
-          const prefix = normalizedDepartment === 'sales' ? 'SAL' : 'ADM'
+          const prefixMap: Record<string, string> = {
+            sales: 'SAL',
+            admin_digital: 'ADM',
+            hr: 'HR',
+            accounts: 'ACC',
+            director: 'DIR'
+          }
+          const prefix = prefixMap[normalizedDepartment] || 'EMP'
           const timestamp = Date.now().toString().slice(-6) + i.toString()
           finalEmployeeId = `${prefix}${timestamp}`
         }
 
         await pool.execute(
-          `INSERT INTO employees_table (employee_id, full_name, email, phone, department, designation, joining_date, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [finalEmployeeId, full_name, email || null, phone || null, normalizedDepartment, designation || null, joining_date || null, 'active']
+          `INSERT INTO employees_table (employee_id, full_name, email, phone, department, designation, joining_date, status, branch)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [finalEmployeeId, full_name, email || null, phone || null, normalizedDepartment, designation || null, joining_date || null, 'active', normalizedBranch]
         )
         results.success++
       } catch (error: any) {

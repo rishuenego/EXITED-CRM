@@ -56,10 +56,26 @@ import {
   Trash2,
   Phone,
   Mail,
+  Upload,
 } from 'lucide-react'
 import api from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
+import BulkUploadDialog from '@/components/BulkUploadDialog'
+
+const DEPARTMENTS = [
+  { value: 'sales', label: 'Sales' },
+  { value: 'admin_digital', label: 'Admin/Digital' },
+  { value: 'hr', label: 'HR' },
+  { value: 'accounts', label: 'Accounts' },
+]
+
+const BRANCHES = [
+  { value: 'head_office', label: 'Head Office' },
+  { value: 'branch_1', label: 'Branch 1' },
+  { value: 'branch_2', label: 'Branch 2' },
+  { value: 'branch_3', label: 'Branch 3' },
+]
 
 interface Employee {
   id: number
@@ -73,16 +89,21 @@ interface ExitRecord {
   id: number
   employee_id: number
   employee_name: string
-  exit_type: 'sales' | 'admin_digital'
+  exit_type: string
+  department: string
+  branch: string
   exit_date: string
   sim_taken: boolean
   whatsapp_logged_out: boolean
   crm_mail_removed: boolean
   dialer_removed: boolean
   laptop_taken: boolean
-  sim_given_to: string | null
-  laptop_given_to: string | null
+  sim_given_to: number | null
+  sim_given_to_name: string | null
+  laptop_given_to: number | null
+  laptop_given_to_name: string | null
   accessories: string | null
+  reason: string | null
   created_by: string
   created_at: string
   credentials?: Credential[]
@@ -99,31 +120,37 @@ interface Credential {
 
 interface ExitFormData {
   employee_id: number
-  exit_type: 'sales' | 'admin_digital'
+  exit_type: string
+  department: string
+  branch: string
   exit_date: string
   sim_taken: boolean
   whatsapp_logged_out: boolean
   crm_mail_removed: boolean
   dialer_removed: boolean
   laptop_taken: boolean
-  sim_given_to: string
-  laptop_given_to: string
+  sim_given_to: number
+  laptop_given_to: number
   accessories: string
+  reason: string
   credentials: Credential[]
 }
 
 const emptyFormData: ExitFormData = {
   employee_id: 0,
   exit_type: 'sales',
+  department: 'sales',
+  branch: 'head_office',
   exit_date: new Date().toISOString().split('T')[0],
   sim_taken: false,
   whatsapp_logged_out: false,
   crm_mail_removed: false,
   dialer_removed: false,
   laptop_taken: false,
-  sim_given_to: '',
-  laptop_given_to: '',
+  sim_given_to: 0,
+  laptop_given_to: 0,
   accessories: '',
+  reason: '',
   credentials: [],
 }
 
@@ -144,7 +171,10 @@ export default function ExitPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [branchFilter, setBranchFilter] = useState('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([])
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
@@ -158,12 +188,14 @@ export default function ExitPage() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      const [exitsResponse, employeesResponse] = await Promise.all([
+      const [exitsResponse, employeesResponse, allEmployeesResponse] = await Promise.all([
         api.get('/exits'),
-        api.get('/employees?status=active')
+        api.get('/employees?status=active'),
+        api.get('/employees')
       ])
       setExitRecords(exitsResponse.data)
       setEmployees(employeesResponse.data)
+      setAllEmployees(allEmployeesResponse.data)
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to fetch data')
     } finally {
@@ -180,9 +212,12 @@ export default function ExitPage() {
       const matchesType =
         typeFilter === 'all' || record.exit_type === typeFilter
 
-      return matchesSearch && matchesType
+      const matchesBranch =
+        branchFilter === 'all' || record.branch === branchFilter
+
+      return matchesSearch && matchesType && matchesBranch
     })
-  }, [exitRecords, searchTerm, typeFilter])
+  }, [exitRecords, searchTerm, typeFilter, branchFilter])
 
   const handleOpenDialog = (record?: ExitRecord) => {
     if (record) {
@@ -191,15 +226,18 @@ export default function ExitPage() {
       setFormData({
         employee_id: record.employee_id,
         exit_type: record.exit_type,
+        department: record.department || 'sales',
+        branch: record.branch || 'head_office',
         exit_date: record.exit_date?.split('T')[0] || '',
         sim_taken: record.sim_taken,
         whatsapp_logged_out: record.whatsapp_logged_out,
         crm_mail_removed: record.crm_mail_removed,
         dialer_removed: record.dialer_removed,
         laptop_taken: record.laptop_taken,
-        sim_given_to: record.sim_given_to || '',
-        laptop_given_to: record.laptop_given_to || '',
+        sim_given_to: record.sim_given_to || 0,
+        laptop_given_to: record.laptop_given_to || 0,
         accessories: record.accessories || '',
+        reason: record.reason || '',
         credentials: record.credentials || [],
       })
     } else {
@@ -311,10 +349,16 @@ export default function ExitPage() {
             Process employee exits and manage handover documentation
           </p>
         </div>
-        <Button onClick={handleOpenDialog}>
-          <Plus className="mr-2 h-4 w-4" />
-          Process Exit
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Upload
+          </Button>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="mr-2 h-4 w-4" />
+            Process Exit
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -338,6 +382,19 @@ export default function ExitPage() {
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="sales">Sales</SelectItem>
                 <SelectItem value="admin_digital">Admin/Digital</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Branch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Branches</SelectItem>
+                {BRANCHES.map((branch) => (
+                  <SelectItem key={branch.value} value={branch.value}>
+                    {branch.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -372,12 +429,13 @@ export default function ExitPage() {
                   <TableRow>
                     <TableHead>ID</TableHead>
                     <TableHead>Employee</TableHead>
-                    <TableHead>Exit Type</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Branch</TableHead>
                     <TableHead>Exit Date</TableHead>
+                    <TableHead>Reason</TableHead>
                     <TableHead>SIM Taken</TableHead>
                     <TableHead>WhatsApp</TableHead>
                     <TableHead>CRM/Mail</TableHead>
-                    <TableHead>Dialer</TableHead>
                     <TableHead>Processed By</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -388,19 +446,19 @@ export default function ExitPage() {
                       <TableCell className="font-medium">{record.id}</TableCell>
                       <TableCell>{record.employee_name}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant={record.exit_type === 'sales' ? 'default' : 'secondary'}
-                          className="flex w-fit items-center gap-1"
-                        >
-                          {record.exit_type === 'sales' ? (
-                            <Briefcase className="h-3 w-3" />
-                          ) : (
-                            <Monitor className="h-3 w-3" />
-                          )}
-                          {record.exit_type === 'sales' ? 'Sales' : 'Admin/Digital'}
+                        <Badge variant="outline">
+                          {DEPARTMENTS.find(d => d.value === record.department)?.label || record.department || '-'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {BRANCHES.find(b => b.value === record.branch)?.label || record.branch || '-'}
                         </Badge>
                       </TableCell>
                       <TableCell>{formatDate(record.exit_date)}</TableCell>
+                      <TableCell className="max-w-24 truncate" title={record.reason || ''}>
+                        {record.reason || '-'}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           className={
@@ -433,21 +491,6 @@ export default function ExitPage() {
                         >
                           {record.crm_mail_removed ? 'Yes' : 'No'}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {record.exit_type === 'sales' ? (
-                          <Badge
-                            className={
-                              record.dialer_removed
-                                ? 'bg-success/20 text-success'
-                                : 'bg-destructive/20 text-destructive'
-                            }
-                          >
-                            {record.dialer_removed ? 'Yes' : 'No'}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">N/A</span>
-                        )}
                       </TableCell>
                       <TableCell>{record.created_by}</TableCell>
                       <TableCell className="text-right">
@@ -507,7 +550,7 @@ export default function ExitPage() {
             <Tabs
               value={formData.exit_type}
               onValueChange={(value) =>
-                setFormData({ ...formData, exit_type: value as 'sales' | 'admin_digital' })
+                setFormData({ ...formData, exit_type: value })
               }
               className="w-full"
             >
@@ -539,7 +582,7 @@ export default function ExitPage() {
                       <SelectContent>
                         {employees.map((emp) => (
                           <SelectItem key={emp.id} value={emp.id.toString()}>
-                            {emp.full_name} - {emp.department === 'sales' ? 'Sales' : 'Admin/Digital'}
+                            {emp.full_name} - {DEPARTMENTS.find(d => d.value === emp.department)?.label || emp.department}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -557,6 +600,60 @@ export default function ExitPage() {
                       required
                     />
                   </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="department">Department</Label>
+                    <Select
+                      value={formData.department}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, department: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEPARTMENTS.map((dept) => (
+                          <SelectItem key={dept.value} value={dept.value}>
+                            {dept.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="branch">Branch</Label>
+                    <Select
+                      value={formData.branch}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, branch: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BRANCHES.map((branch) => (
+                          <SelectItem key={branch.value} value={branch.value}>
+                            {branch.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reason">Reason for Exit</Label>
+                  <Textarea
+                    id="reason"
+                    placeholder="Enter reason for exit..."
+                    value={formData.reason}
+                    onChange={(e) =>
+                      setFormData({ ...formData, reason: e.target.value })
+                    }
+                    rows={2}
+                  />
                 </div>
 
                 <Separator />
@@ -623,14 +720,24 @@ export default function ExitPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sim_given_to">SIM Given To</Label>
-                    <Input
-                      id="sim_given_to"
-                      placeholder="Enter employee name who received the SIM"
-                      value={formData.sim_given_to}
-                      onChange={(e) =>
-                        setFormData({ ...formData, sim_given_to: e.target.value })
+                    <Select
+                      value={formData.sim_given_to?.toString() || '0'}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, sim_given_to: parseInt(value) })
                       }
-                    />
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select employee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">None</SelectItem>
+                        {allEmployees.map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id.toString()}>
+                            {emp.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="accessories">Other Accessories</Label>
@@ -706,25 +813,45 @@ export default function ExitPage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="sim_given_to_admin">SIM Given To</Label>
-                      <Input
-                        id="sim_given_to_admin"
-                        placeholder="Employee name"
-                        value={formData.sim_given_to}
-                        onChange={(e) =>
-                          setFormData({ ...formData, sim_given_to: e.target.value })
+                      <Select
+                        value={formData.sim_given_to?.toString() || '0'}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, sim_given_to: parseInt(value) })
                         }
-                      />
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">None</SelectItem>
+                          {allEmployees.map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="laptop_given_to">Laptop Given To</Label>
-                      <Input
-                        id="laptop_given_to"
-                        placeholder="Employee name"
-                        value={formData.laptop_given_to}
-                        onChange={(e) =>
-                          setFormData({ ...formData, laptop_given_to: e.target.value })
+                      <Select
+                        value={formData.laptop_given_to?.toString() || '0'}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, laptop_given_to: parseInt(value) })
                         }
-                      />
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">None</SelectItem>
+                          {allEmployees.map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id.toString()}>
+                              {emp.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
@@ -976,23 +1103,34 @@ export default function ExitPage() {
                 </div>
               </div>
 
+              {/* Reason */}
+              {selectedRecord.reason && (
+                <>
+                  <Separator />
+                  <div className="space-y-1">
+                    <Label className="text-muted-foreground">Reason for Exit</Label>
+                    <p className="font-medium">{selectedRecord.reason}</p>
+                  </div>
+                </>
+              )}
+
               {/* Assignment Info */}
-              {(selectedRecord.sim_given_to || selectedRecord.laptop_given_to) && (
+              {(selectedRecord.sim_given_to_name || selectedRecord.laptop_given_to_name) && (
                 <>
                   <Separator />
                   <div className="space-y-3">
                     <Label className="text-base">Assignment Info</Label>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {selectedRecord.sim_given_to && (
+                      {selectedRecord.sim_given_to_name && (
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">SIM Given To</Label>
-                          <p className="font-medium">{selectedRecord.sim_given_to}</p>
+                          <p className="font-medium">{selectedRecord.sim_given_to_name}</p>
                         </div>
                       )}
-                      {selectedRecord.laptop_given_to && (
+                      {selectedRecord.laptop_given_to_name && (
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Laptop Given To</Label>
-                          <p className="font-medium">{selectedRecord.laptop_given_to}</p>
+                          <p className="font-medium">{selectedRecord.laptop_given_to_name}</p>
                         </div>
                       )}
                     </div>
@@ -1088,9 +1226,17 @@ export default function ExitPage() {
             >
               Delete
             </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+</AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+      {/* Bulk Upload Dialog */}
+      <BulkUploadDialog
+        open={isBulkUploadOpen}
+        onOpenChange={setIsBulkUploadOpen}
+        type="exits"
+        onSuccess={fetchData}
+      />
     </div>
   )
 }

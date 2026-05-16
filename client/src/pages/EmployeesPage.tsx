@@ -54,8 +54,24 @@ interface Employee {
   joining_date: string
   status: 'active' | 'exited'
   exit_date: string | null
+  branch: string
   created_at: string
 }
+
+const DEPARTMENTS = [
+  { value: 'sales', label: 'Sales' },
+  { value: 'admin_digital', label: 'Admin/Digital' },
+  { value: 'hr', label: 'HR' },
+  { value: 'accounts', label: 'Accounts' },
+  { value: 'director', label: 'Director' },
+]
+
+const BRANCHES = [
+  { value: 'head_office', label: 'Head Office' },
+  { value: 'branch_1', label: 'Branch 1' },
+  { value: 'branch_2', label: 'Branch 2' },
+  { value: 'branch_3', label: 'Branch 3' },
+]
 
 const emptyEmployee = {
   employee_id: '',
@@ -65,6 +81,7 @@ const emptyEmployee = {
   department: 'sales',
   designation: '',
   joining_date: '',
+  branch: 'head_office',
 }
 
 export default function EmployeesPage() {
@@ -74,6 +91,7 @@ export default function EmployeesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [departmentFilter, setDepartmentFilter] = useState('all')
+  const [branchFilter, setBranchFilter] = useState('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
@@ -110,9 +128,12 @@ export default function EmployeesPage() {
       const matchesDepartment =
         departmentFilter === 'all' || employee.department === departmentFilter
 
-      return matchesSearch && matchesStatus && matchesDepartment
+      const matchesBranch =
+        branchFilter === 'all' || employee.branch === branchFilter
+
+      return matchesSearch && matchesStatus && matchesDepartment && matchesBranch
     })
-  }, [employees, searchTerm, statusFilter, departmentFilter])
+  }, [employees, searchTerm, statusFilter, departmentFilter, branchFilter])
 
   const handleOpenDialog = (employee?: Employee) => {
     if (employee) {
@@ -125,6 +146,7 @@ export default function EmployeesPage() {
         department: employee.department,
         designation: employee.designation || '',
         joining_date: employee.joining_date || '',
+        branch: employee.branch || 'head_office',
       })
     } else {
       setSelectedEmployee(null)
@@ -224,8 +246,24 @@ export default function EmployeesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
-                  <SelectItem value="sales">Sales</SelectItem>
-                  <SelectItem value="admin_digital">Admin/Digital</SelectItem>
+                  {DEPARTMENTS.map((dept) => (
+                    <SelectItem key={dept.value} value={dept.value}>
+                      {dept.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={branchFilter} onValueChange={setBranchFilter}>
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {BRANCHES.map((branch) => (
+                    <SelectItem key={branch.value} value={branch.value}>
+                      {branch.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -264,6 +302,7 @@ export default function EmployeesPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Department</TableHead>
+                    <TableHead>Branch</TableHead>
                     <TableHead>Designation</TableHead>
                     <TableHead>Join Date</TableHead>
                     <TableHead>Status</TableHead>
@@ -279,7 +318,12 @@ export default function EmployeesPage() {
                       <TableCell>{employee.phone || '-'}</TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {employee.department === 'sales' ? 'Sales' : 'Admin/Digital'}
+                          {DEPARTMENTS.find(d => d.value === employee.department)?.label || employee.department}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {BRANCHES.find(b => b.value === employee.branch)?.label || employee.branch || '-'}
                         </Badge>
                       </TableCell>
                       <TableCell>{employee.designation || '-'}</TableCell>
@@ -400,8 +444,11 @@ export default function EmployeesPage() {
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="sales">Sales</SelectItem>
-                      <SelectItem value="admin_digital">Admin/Digital</SelectItem>
+                      {DEPARTMENTS.map((dept) => (
+                        <SelectItem key={dept.value} value={dept.value}>
+                          {dept.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -416,16 +463,38 @@ export default function EmployeesPage() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="joining_date">Join Date</Label>
-                <Input
-                  id="joining_date"
-                  type="date"
-                  value={formData.joining_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, joining_date: e.target.value })
-                  }
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="branch">Branch</Label>
+                  <Select
+                    value={formData.branch}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, branch: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BRANCHES.map((branch) => (
+                        <SelectItem key={branch.value} value={branch.value}>
+                          {branch.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="joining_date">Join Date</Label>
+                  <Input
+                    id="joining_date"
+                    type="date"
+                    value={formData.joining_date}
+                    onChange={(e) =>
+                      setFormData({ ...formData, joining_date: e.target.value })
+                    }
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>

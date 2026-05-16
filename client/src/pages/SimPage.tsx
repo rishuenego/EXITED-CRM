@@ -53,8 +53,16 @@ interface Sim {
   status: 'active' | 'inactive' | 'returned'
   assigned_date: string
   notes: string | null
+  branch: string
   created_at: string
 }
+
+const BRANCHES = [
+  { value: 'head_office', label: 'Head Office' },
+  { value: 'branch_1', label: 'Branch 1' },
+  { value: 'branch_2', label: 'Branch 2' },
+  { value: 'branch_3', label: 'Branch 3' },
+]
 
 interface Employee {
   id: number
@@ -70,6 +78,7 @@ const emptySim = {
   status: 'active' as const,
   assigned_date: '',
   notes: '',
+  branch: 'head_office',
 }
 
 export default function SimPage() {
@@ -79,6 +88,7 @@ export default function SimPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [branchFilter, setBranchFilter] = useState('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false)
@@ -115,9 +125,12 @@ export default function SimPage() {
       const matchesStatus =
         statusFilter === 'all' || sim.status === statusFilter
 
-      return matchesSearch && matchesStatus
+      const matchesBranch =
+        branchFilter === 'all' || sim.branch === branchFilter
+
+      return matchesSearch && matchesStatus && matchesBranch
     })
-  }, [sims, searchTerm, statusFilter])
+  }, [sims, searchTerm, statusFilter, branchFilter])
 
   const handleOpenDialog = (sim?: Sim) => {
     if (sim) {
@@ -128,6 +141,7 @@ export default function SimPage() {
         status: sim.status,
         assigned_date: sim.assigned_date || '',
         notes: sim.notes || '',
+        branch: sim.branch || 'head_office',
       })
     } else {
       setSelectedSim(null)
@@ -246,6 +260,19 @@ export default function SimPage() {
                 <SelectItem value="returned">Returned</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Branch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Branches</SelectItem>
+                {BRANCHES.map((branch) => (
+                  <SelectItem key={branch.value} value={branch.value}>
+                    {branch.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -279,6 +306,7 @@ export default function SimPage() {
                     <TableHead>ID</TableHead>
                     <TableHead>SIM Number</TableHead>
                     <TableHead>Assigned To</TableHead>
+                    <TableHead>Branch</TableHead>
                     <TableHead>Employee Status</TableHead>
                     <TableHead>SIM Status</TableHead>
                     <TableHead>Assigned Date</TableHead>
@@ -295,6 +323,11 @@ export default function SimPage() {
                       </TableCell>
                       <TableCell>
                         <p className="font-medium">{sim.employee_name || '-'}</p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {BRANCHES.find(b => b.value === sim.branch)?.label || sim.branch || '-'}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -415,16 +448,38 @@ export default function SimPage() {
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="assigned_date">Assigned Date</Label>
-                <Input
-                  id="assigned_date"
-                  type="date"
-                  value={formData.assigned_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, assigned_date: e.target.value })
-                  }
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="branch">Branch</Label>
+                  <Select
+                    value={formData.branch}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, branch: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BRANCHES.map((branch) => (
+                        <SelectItem key={branch.value} value={branch.value}>
+                          {branch.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="assigned_date">Assigned Date</Label>
+                  <Input
+                    id="assigned_date"
+                    type="date"
+                    value={formData.assigned_date}
+                    onChange={(e) =>
+                      setFormData({ ...formData, assigned_date: e.target.value })
+                    }
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notes">Notes</Label>

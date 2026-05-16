@@ -7,7 +7,7 @@ const router = Router()
 // Get all SIMs with employee info
 router.get('/', authenticateSession, async (req: AuthRequest, res: Response) => {
   try {
-    const { status, search } = req.query
+    const { status, search, branch } = req.query
     let query = `
       SELECT s.*, e.full_name as employee_name, e.employee_id as emp_code, e.status as employee_status
       FROM simcards_table s
@@ -63,16 +63,16 @@ router.get('/:id', authenticateSession, async (req: AuthRequest, res: Response) 
 // Create SIM
 router.post('/', authenticateSession, async (req: AuthRequest, res: Response) => {
   try {
-    const { sim_number, phone_number, employee_id, provider, status, assigned_date, notes } = req.body
+    const { sim_number, phone_number, employee_id, provider, status, assigned_date, notes, branch } = req.body
 
     if (!sim_number) {
       return res.status(400).json({ error: 'SIM number is required' })
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO simcards_table (sim_number, phone_number, employee_id, provider, status, assigned_date, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [sim_number, phone_number || null, employee_id || null, provider || null, status || 'active', assigned_date || null, notes || null]
+      `INSERT INTO simcards_table (sim_number, phone_number, employee_id, provider, status, assigned_date, notes, branch)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [sim_number, phone_number || null, employee_id || null, provider || null, status || 'active', assigned_date || null, notes || null, branch || 'head_office']
     )
 
     const insertResult = result as any
@@ -89,12 +89,12 @@ router.post('/', authenticateSession, async (req: AuthRequest, res: Response) =>
 // Update SIM
 router.put('/:id', authenticateSession, async (req: AuthRequest, res: Response) => {
   try {
-    const { sim_number, phone_number, employee_id, provider, status, assigned_date, notes } = req.body
+    const { sim_number, phone_number, employee_id, provider, status, assigned_date, notes, branch } = req.body
 
     await pool.execute(
       `UPDATE simcards_table SET sim_number = ?, phone_number = ?, employee_id = ?, provider = ?, 
-       status = ?, assigned_date = ?, notes = ? WHERE id = ?`,
-      [sim_number, phone_number, employee_id || null, provider, status, assigned_date, notes, req.params.id]
+       status = ?, assigned_date = ?, notes = ?, branch = ? WHERE id = ?`,
+      [sim_number, phone_number || null, employee_id || null, provider || null, status || 'active', assigned_date || null, notes || null, branch || 'head_office', req.params.id]
     )
 
     res.json({ message: 'SIM updated successfully' })
@@ -136,7 +136,7 @@ router.post('/bulk', authenticateSession, async (req: AuthRequest, res: Response
     for (let i = 0; i < data.length; i++) {
       const row = data[i]
       try {
-        const { sim_number, employee_name, status, assigned_date, notes } = row
+        const { sim_number, employee_name, status, assigned_date, notes, branch } = row
 
         if (!sim_number) {
           results.failed++
@@ -148,6 +148,13 @@ router.post('/bulk', authenticateSession, async (req: AuthRequest, res: Response
         let normalizedStatus = (status || 'active').toLowerCase().trim()
         if (!['active', 'inactive', 'returned'].includes(normalizedStatus)) {
           normalizedStatus = 'active'
+        }
+
+        // Normalize branch
+        let normalizedBranch = (branch || 'head_office').toLowerCase().trim().replace(/\s+/g, '_')
+        const validBranches = ['head_office', 'branch_1', 'branch_2', 'branch_3']
+        if (!validBranches.includes(normalizedBranch)) {
+          normalizedBranch = 'head_office'
         }
 
         // Find employee by name if provided
@@ -164,9 +171,9 @@ router.post('/bulk', authenticateSession, async (req: AuthRequest, res: Response
         }
 
         await pool.execute(
-          `INSERT INTO simcards_table (sim_number, employee_id, status, assigned_date, notes)
-           VALUES (?, ?, ?, ?, ?)`,
-          [sim_number, employeeId, normalizedStatus, assigned_date || null, notes || null]
+          `INSERT INTO simcards_table (sim_number, employee_id, status, assigned_date, notes, branch)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [sim_number, employeeId, normalizedStatus, assigned_date || null, notes || null, normalizedBranch]
         )
         results.success++
       } catch (error: any) {

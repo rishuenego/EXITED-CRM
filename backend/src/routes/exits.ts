@@ -10,7 +10,7 @@ router.get(
   authenticateSession,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { exit_type, search } = req.query;
+      const { exit_type, search, branch } = req.query;
       let query = `
       SELECT er.*, 
              e.full_name as employee_name, 
@@ -30,6 +30,11 @@ router.get(
       if (exit_type && exit_type !== "all") {
         query += " AND er.exit_type = ?";
         params.push(exit_type);
+      }
+
+      if (branch && branch !== "all") {
+        query += " AND er.branch = ?";
+        params.push(branch);
       }
 
       if (search) {
@@ -120,6 +125,8 @@ router.post(
       const {
         employee_id,
         exit_type,
+        department,
+        branch,
         exit_date,
         sim_taken,
         whatsapp_logged_out,
@@ -129,7 +136,7 @@ router.post(
         sim_given_to,
         laptop_given_to,
         accessories,
-        remarks,
+        reason,
         credentials,
       } = req.body;
 
@@ -142,12 +149,14 @@ router.post(
       // Create exit record
       const [result] = await connection.execute(
         `INSERT INTO exitrecords_table 
-       (employee_id, exit_type, exit_date, sim_taken, whatsapp_logged_out, crm_mail_removed, dialer_removed, laptop_taken, 
-        sim_given_to, laptop_given_to, accessories, remarks, processed_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (employee_id, exit_type, department, branch, exit_date, sim_taken, whatsapp_logged_out, crm_mail_removed, dialer_removed, laptop_taken, 
+        sim_given_to, laptop_given_to, accessories, reason, processed_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           employee_id,
           exit_type,
+          department || 'sales',
+          branch || 'head_office',
           exit_date,
           sim_taken || false,
           whatsapp_logged_out || false,
@@ -157,7 +166,7 @@ router.post(
           sim_given_to || null,
           laptop_given_to || null,
           accessories || null,
-          remarks || null,
+          reason || null,
           req.user?.id,
         ],
       );
@@ -226,6 +235,8 @@ router.put(
 
       const {
         exit_type,
+        department,
+        branch,
         exit_date,
         sim_taken,
         whatsapp_logged_out,
@@ -235,28 +246,30 @@ router.put(
         sim_given_to,
         laptop_given_to,
         accessories,
-        remarks,
+        reason,
         credentials,
       } = req.body;
 
       await connection.execute(
         `UPDATE exitrecords_table SET 
-       exit_type = ?, exit_date = ?, sim_taken = ?, whatsapp_logged_out = ?, 
+       exit_type = ?, department = ?, branch = ?, exit_date = ?, sim_taken = ?, whatsapp_logged_out = ?, 
        crm_mail_removed = ?, dialer_removed = ?, laptop_taken = ?, sim_given_to = ?, 
-       laptop_given_to = ?, accessories = ?, remarks = ?
+       laptop_given_to = ?, accessories = ?, reason = ?
        WHERE id = ?`,
         [
           exit_type,
+          department || 'sales',
+          branch || 'head_office',
           exit_date,
           sim_taken,
           whatsapp_logged_out,
           crm_mail_removed || false,
           dialer_removed || false,
           laptop_taken,
-          sim_given_to,
-          laptop_given_to,
-          accessories,
-          remarks,
+          sim_given_to || null,
+          laptop_given_to || null,
+          accessories || null,
+          reason || null,
           req.params.id,
         ],
       );
@@ -302,6 +315,115 @@ router.put(
       connection.release();
     }
   },
+);
+
+// Bulk upload exits
+router.post(
+  "/bulk",
+  authenticateSession,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { data } = req.body;
+
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        return res.status(400).json({ error: "No data provided" });
+      }
+
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: [] as { row: number; error: string }[],
+      };
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        try {
+          const { employee_name, exit_date, department, reason } = row;
+
+          if (!employee_name || !exit_date) {
+            results.failed++;
+            results.errors.push({
+              row: i + 2,
+              error: "Employee name and exit date are required",
+            });
+            continue;
+          }
+
+          // Find employee by name
+          const [employees] = await pool.execute(
+            "SELECT id FROM employees_table WHERE full_name LIKE ? AND status = 'active' LIMIT 1",
+            [`%${employee_name.trim()}%`]
+          );
+          const empRows = employees as any[];
+
+          if (empRows.length === 0) {
+            results.failed++;
+            results.errors.push({
+              row: i + 2,
+              error: `Employee "${employee_name}" not found or not active`,
+            });
+            continue;
+          }
+
+          const employeeId = empRows[0].id;
+
+          // Normalize department
+          let normalizedDepartment = (department || "sales")
+            .toLowerCase()
+            .trim();
+          const validDepartments = [
+            "sales",
+            "admin_digital",
+            "hr",
+            "accounts",
+          ];
+          if (
+            normalizedDepartment === "admin/digital" ||
+            normalizedDepartment === "admin"
+          ) {
+            normalizedDepartment = "admin_digital";
+          }
+          if (!validDepartments.includes(normalizedDepartment)) {
+            normalizedDepartment = "sales";
+          }
+
+          // Create exit record
+          await pool.execute(
+            `INSERT INTO exitrecords_table 
+             (employee_id, exit_type, department, exit_date, reason, processed_by)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              employeeId,
+              normalizedDepartment,
+              normalizedDepartment,
+              exit_date,
+              reason || null,
+              req.user?.id,
+            ]
+          );
+
+          // Update employee status to exited
+          await pool.execute(
+            "UPDATE employees_table SET status = ? WHERE id = ?",
+            ["exited", employeeId]
+          );
+
+          results.success++;
+        } catch (error: any) {
+          results.failed++;
+          results.errors.push({
+            row: i + 2,
+            error: error.message || "Unknown error",
+          });
+        }
+      }
+
+      res.json(results);
+    } catch (error) {
+      console.error("Bulk upload exits error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
 );
 
 // Delete exit record
