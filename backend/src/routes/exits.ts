@@ -140,6 +140,10 @@ router.post(
           .json({ error: "Employee, exit type, and exit date are required" });
       }
 
+      // Convert sim_given_to and laptop_given_to to integers or null
+      const simGivenToId = sim_given_to && sim_given_to !== 'none' && sim_given_to !== '' ? parseInt(sim_given_to, 10) : null;
+      const laptopGivenToId = laptop_given_to && laptop_given_to !== 'none' && laptop_given_to !== '' ? parseInt(laptop_given_to, 10) : null;
+
       // Create exit record
       const [result] = await connection.execute(
         `INSERT INTO exitrecords_table 
@@ -155,8 +159,8 @@ router.post(
           crm_mail_removed || false,
           dialer_removed || false,
           laptop_taken || null,
-          sim_given_to || null,
-          laptop_given_to || null,
+          simGivenToId,
+          laptopGivenToId,
           accessories || null,
           remarks || null,
           reason || null,
@@ -242,6 +246,10 @@ router.put(
         credentials,
       } = req.body;
 
+      // Convert sim_given_to and laptop_given_to to integers or null
+      const simGivenToId = sim_given_to && sim_given_to !== 'none' && sim_given_to !== '' ? parseInt(sim_given_to, 10) : null;
+      const laptopGivenToId = laptop_given_to && laptop_given_to !== 'none' && laptop_given_to !== '' ? parseInt(laptop_given_to, 10) : null;
+
       await connection.execute(
         `UPDATE exitrecords_table SET 
        exit_type = ?, exit_date = ?, sim_taken = ?, whatsapp_logged_out = ?, 
@@ -256,8 +264,8 @@ router.put(
           crm_mail_removed || false,
           dialer_removed || false,
           laptop_taken,
-          sim_given_to || null,
-          laptop_given_to || null,
+          simGivenToId,
+          laptopGivenToId,
           accessories || null,
           remarks || null,
           reason || null,
